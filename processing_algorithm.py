@@ -4,7 +4,7 @@ from typing import Dict, Any
 from osgeo import gdal
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis._core import QgsRasterLayer, QgsProcessingContext, QgsProcessingFeedback, QgsCoordinateTransform, \
-    QgsProcessingUtils, QgsProject
+    QgsProcessingUtils, QgsProject, QgsProcessingParameterBoolean
 from qgis.core import (QgsProcessing,
                        QgsProcessingAlgorithm,
                        QgsProcessingOutputNumber,
@@ -40,10 +40,10 @@ class TopoCorrectionContext:
         self.solar_azimuth = solar_azimuth
 
     def sza_cosine(self):
-        cos(radians(self.solar_zenith_angle))
+        return cos(radians(self.solar_zenith_angle))
 
     def azimuth_cosine(self):
-        cos(radians(self.solar_azimuth))
+        return cos(radians(self.solar_azimuth))
 
 
 class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
@@ -97,7 +97,8 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 'INPUT',
-                self.tr('Input raster layer')
+                self.tr('Input raster layer'),
+                defaultValue=QgsProject.instance().mapLayersByName("CUT_INPUT")[0]
             )
         )
 
@@ -105,21 +106,34 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterRasterLayer(
                 'DEM',
                 self.tr('Input DEM layer'),
-                optional=True
+                optional=True,
+                defaultValue=QgsProject.instance().mapLayersByName("CUT_DEM")[0]
             )
         )
 
         self.addParameter(
             QgsProcessingParameterNumber(
                 'SZA',
-                self.tr('Solar zenith angle')
+                self.tr('Solar zenith angle'),
+                defaultValue=57.2478878065826,
+                type=QgsProcessingParameterNumber.Double
             )
         )
 
         self.addParameter(
             QgsProcessingParameterNumber(
                 'SOLAR_AZIMUTH',
-                self.tr('Solar azimuth')
+                self.tr('Solar azimuth'),
+                defaultValue=177.744663052425,
+                type=QgsProcessingParameterNumber.Double
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                'SHOW_TMP_LAYERS',
+                self.tr('Show temporary layers (aspect, slope, etc.)'),
+                defaultValue=False,
             )
         )
 
@@ -143,6 +157,9 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         solar_zenith_angle = self.parameterAsDouble(parameters, 'SZA', context)
         solar_azimuth = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context)
 
+        # todo
+        self.show_tmp_layers = self.parameterAsBoolean(parameters, 'SHOW_TMP_LAYERS', context)
+
         slope_path = self.build_slope_layer(feedback, context, dem_layer)
         if feedback.isCanceled():
             return {}
@@ -154,44 +171,35 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         luminance_path = self.compute_luminance(
             feedback, context, slope_path, aspect_path, solar_zenith_angle, solar_azimuth)
 
-        QgsProcessingUtils.mapLayerFromString(luminance_path, context)
-        luminance_layer = QgsRasterLayer(luminance_path, "Luminance")
-        luminance_layer.setExtent(input_layer.extent())
-        QgsProject.instance().layerTreeRoot().addLayer(luminance_layer)
+        # QgsProcessingUtils.mapLayerFromString(luminance_path, context)
+        # luminance_layer = QgsRasterLayer(luminance_path, "Luminance")
+        # luminance_layer.setExtent(input_layer.extent())
+        # QgsProject.instance().layerTreeRoot().addLayer(luminance_layer)
 
         if feedback.isCanceled():
             return {}
 
         topo_context = TopoCorrectionContext(
-            context,
-            feedback,
-            parameters,
-            input_layer,
-            slope_path,
-            aspect_path,
-            luminance_path,
-            solar_zenith_angle,
-            solar_azimuth
+            qgis_context=context,
+            qgis_feedback=feedback,
+            qgis_params=parameters,
+            input_layer=input_layer,
+            slope_path=slope_path,
+            aspect_path=aspect_path,
+            luminance_path=luminance_path,
+            solar_zenith_angle=solar_zenith_angle,
+            solar_azimuth=solar_azimuth
         )
 
-        return self.cosine_topocorrection(topo_context)
+        return self.scs_topocorrection(topo_context)
 
-    def cosine_topocorrection(self, context: TopoCorrectionContext) -> Dict[str, Any]:
+    def cosine_t_topocorrection(self, context: TopoCorrectionContext) -> Dict[str, Any]:
         result_bands = []
         luminance_layer = QgsRasterLayer(context.luminance_path, "Luminance layer")
 
-        # use here gdal utils with ts=(1500, 1500)
-
-        processing.run("gdal:warpreproject", {'INPUT': 'D:/Diploma/TestData/Kamchatka/ASPECT_CUT.tif',
-                                              'SOURCE_CRS': QgsCoordinateReferenceSystem('EPSG:4326'),
-                                              'TARGET_CRS': QgsCoordinateReferenceSystem('EPSG:32657'), 'RESAMPLING': 0,
-                                              'NODATA': None, 'TARGET_RESOLUTION': 10, 'OPTIONS': '', 'DATA_TYPE': 0,
-                                              'TARGET_EXTENT': None, 'TARGET_EXTENT_CRS': None, 'MULTITHREADING': False,
-                                              'EXTRA': '', 'OUTPUT': 'TEMPORARY_OUTPUT'})
-
         for band_id in range(context.input_layer.bandCount()):
             try:
-                results = processing.runAndLoadResults(
+                results = processing.run(
                     'gdal:rastercalculator',
                     {
                         # create layer from luminance_layer
@@ -199,9 +207,59 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                         'BAND_A': 1,
                         'INPUT_B': context.input_layer,
                         'BAND_B': band_id + 1,
-                        'FORMULA': f'((B*{context.sza_cosine()})/cos(A))',
-                        'OUTPUT': 'TEMPORARY_OUTPUT'
-                    })
+                        'FORMULA': f'((B*{context.sza_cosine()})/A)',
+                        'OUTPUT': 'TEMPORARY_OUTPUT',
+                    },
+                    feedback=context.qgis_feedback,
+                    context=context.qgis_context
+                )
+                result_bands.append(results['OUTPUT'])
+            except QgsProcessingException as exc:
+                raise RuntimeError(f"Error during performing topocorrection: {exc}")
+
+            if context.qgis_feedback.isCanceled():
+                return {}
+
+        return processing.runAndLoadResults(
+            "gdal:merge",
+            {
+                'INPUT': result_bands,
+                'PCT': False,
+                'SEPARATE': True,
+                'NODATA_INPUT': None,
+                'NODATA_OUTPUT': None,
+                'OPTIONS': '',
+                'EXTRA': '',
+                'DATA_TYPE': 5,
+                'OUTPUT': context.qgis_params['OUTPUT']
+            },
+            feedback=context.qgis_feedback,
+            context=context.qgis_context
+        )
+
+    # todo: generalify topocorrection interface
+    def scs_topocorrection(self, context: TopoCorrectionContext) -> Dict[str, Any]:
+        result_bands = []
+        luminance_layer = QgsRasterLayer(context.luminance_path, "Luminance layer")
+
+        for band_id in range(context.input_layer.bandCount()):
+            try:
+                results = processing.run(
+                    'gdal:rastercalculator',
+                    {
+                        # create layer from luminance_layer
+                        'INPUT_A': luminance_layer,
+                        'BAND_A': 1,
+                        'INPUT_B': context.input_layer,
+                        'BAND_B': band_id + 1,
+                        'INPUT_C': context.slope_path,
+                        'BAND_C': 1,
+                        'FORMULA': f'((B*{context.sza_cosine()}*cos(deg2rad(C)))/A)',
+                        'OUTPUT': 'TEMPORARY_OUTPUT',
+                    },
+                    feedback=context.qgis_feedback,
+                    context=context.qgis_context
+                )
                 result_bands.append(results['OUTPUT'])
             except QgsProcessingException as exc:
                 raise RuntimeError(f"Error during performing topocorrection: {exc}")
@@ -232,8 +290,8 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             {
                 'INPUT': dem_layer,
                 'BAND': 1,
-                # magic number lol
-                'SCALE': 111120,
+                # magic number 111120 lol
+                'SCALE': 1,
                 'AS_PERCENT': False,
                 'COMPUTE_EDGES': True,
                 'ZEVENBERGEN': False,
@@ -246,7 +304,10 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             is_child_algorithm=True
         )
 
-        return results['OUTPUT']
+        result_path = results['OUTPUT']
+        self.add_layer_to_project(context, result_path, "Slope_gen")
+
+        return result_path
 
     def build_aspect_layer(self, feedback, context, dem_layer) -> str:
         results = processing.run(
@@ -254,7 +315,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             {
                 'INPUT': dem_layer,
                 'BAND': 1,
-                'TRIG_ANGLE': True,
+                'TRIG_ANGLE': False,
                 'ZERO_FLAT': True,
                 'COMPUTE_EDGES': True,
                 'ZEVENBERGEN': False,
@@ -267,7 +328,10 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             is_child_algorithm=True
         )
 
-        return results['OUTPUT']
+        result_path = results['OUTPUT']
+        self.add_layer_to_project(context, result_path, "Aspect_gen")
+
+        return result_path
 
     def compute_luminance(self, feedback, context, slope_path: str, aspect_path: str, sza: float, solar_azimuth: float) -> str:
         sza_radians = radians(sza)
@@ -288,5 +352,17 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             context=context,
             is_child_algorithm=True
         )
+        result_path = results['OUTPUT']
+        self.add_layer_to_project(context, result_path, "Luminance_gen")
+        return result_path
 
-        return results['OUTPUT']
+    def add_layer_to_project(self, context, layer_path, name="out"):
+        if self.show_tmp_layers:
+            context.addLayerToLoadOnCompletion(
+                layer_path,
+                QgsProcessingContext.LayerDetails(
+                    name,
+                    QgsProject.instance(),
+                    layerTypeHint=QgsProcessingUtils.LayerHint.Raster
+                )
+            )
