@@ -1,21 +1,19 @@
 from math import cos, radians
 from typing import Dict, Any
 
-from osgeo import gdal
 from qgis.PyQt.QtCore import QCoreApplication
-from qgis._core import QgsRasterLayer, QgsProcessingContext, QgsProcessingFeedback, QgsCoordinateTransform, \
-    QgsProcessingUtils, QgsProject, QgsProcessingParameterBoolean
-from qgis.core import (QgsProcessing,
-                       QgsProcessingAlgorithm,
-                       QgsProcessingOutputNumber,
-                       QgsProcessingParameterDistance,
+from qgis._core import QgsRasterLayer, QgsProcessingContext, QgsProcessingFeedback, \
+    QgsProcessingUtils, QgsProject, QgsProcessingParameterBoolean, QgsProcessingParameterEnum
+from qgis.core import (QgsProcessingAlgorithm,
                        QgsProcessingException,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterRasterLayer,
-                       QgsProcessingParameterVectorDestination,
                        QgsProcessingParameterRasterDestination)
 import processing
 
+from algorithms.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
+from algorithms.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
+from algorithms.ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
 
 class TopoCorrectionContext:
     def __init__(
@@ -46,7 +44,20 @@ class TopoCorrectionContext:
         return cos(radians(self.solar_azimuth))
 
 
+# from processing.core.ProcessingConfig import ProcessingConfig
+# from processing.script import ScriptUtils
+# print(ProcessingConfig.getSetting('SCRIPTS_FOLDERS'))
+# print(ScriptUtils.defaultScriptsFolder())
 class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
+    def __init__(self):
+        super().__init__()
+        # todo dynamically scan directory
+        self.algorithms = {
+            ScsTopoCorrectionAlgorithm.get_name(): ScsTopoCorrectionAlgorithm(),
+            CosineTTopoCorrectionAlgorithm.get_name(): CosineTTopoCorrectionAlgorithm(),
+            CosineCTopoCorrectionAlgorithm.get_name(): CosineCTopoCorrectionAlgorithm()
+        }
+
     def tr(self, string):
         """
         Returns a translatable string with the self.tr() function.
@@ -98,7 +109,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             QgsProcessingParameterRasterLayer(
                 'INPUT',
                 self.tr('Input raster layer'),
-                defaultValue=QgsProject.instance().mapLayersByName("CUT_INPUT")[0]
+                # defaultValue=QgsProject.instance().mapLayersByName("CUT_INPUT")[0]
             )
         )
 
@@ -107,7 +118,18 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 'DEM',
                 self.tr('Input DEM layer'),
                 optional=True,
-                defaultValue=QgsProject.instance().mapLayersByName("CUT_DEM")[0]
+                # defaultValue=QgsProject.instance().mapLayersByName("CUT_DEM")[0]
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                'TOPO_CORRECTION_ALGORITHM',
+                self.tr('Topological correction algorithm'),
+                options=self.algorithms.keys(),
+                allowMultiple=False,
+                defaultValue=ScsTopoCorrectionAlgorithm.get_name(),
+                usesStaticStrings=True
             )
         )
 
@@ -191,98 +213,10 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             solar_azimuth=solar_azimuth
         )
 
-        return self.scs_topocorrection(topo_context)
+        tc_algorithm_name = self.parameterAsEnumString(parameters, 'TOPO_CORRECTION_ALGORITHM', context)
 
-    def cosine_t_topocorrection(self, context: TopoCorrectionContext) -> Dict[str, Any]:
-        result_bands = []
-        luminance_layer = QgsRasterLayer(context.luminance_path, "Luminance layer")
-
-        for band_id in range(context.input_layer.bandCount()):
-            try:
-                results = processing.run(
-                    'gdal:rastercalculator',
-                    {
-                        # create layer from luminance_layer
-                        'INPUT_A': luminance_layer,
-                        'BAND_A': 1,
-                        'INPUT_B': context.input_layer,
-                        'BAND_B': band_id + 1,
-                        'FORMULA': f'((B*{context.sza_cosine()})/A)',
-                        'OUTPUT': 'TEMPORARY_OUTPUT',
-                    },
-                    feedback=context.qgis_feedback,
-                    context=context.qgis_context
-                )
-                result_bands.append(results['OUTPUT'])
-            except QgsProcessingException as exc:
-                raise RuntimeError(f"Error during performing topocorrection: {exc}")
-
-            if context.qgis_feedback.isCanceled():
-                return {}
-
-        return processing.runAndLoadResults(
-            "gdal:merge",
-            {
-                'INPUT': result_bands,
-                'PCT': False,
-                'SEPARATE': True,
-                'NODATA_INPUT': None,
-                'NODATA_OUTPUT': None,
-                'OPTIONS': '',
-                'EXTRA': '',
-                'DATA_TYPE': 5,
-                'OUTPUT': context.qgis_params['OUTPUT']
-            },
-            feedback=context.qgis_feedback,
-            context=context.qgis_context
-        )
-
-    # todo: generalify topocorrection interface
-    def scs_topocorrection(self, context: TopoCorrectionContext) -> Dict[str, Any]:
-        result_bands = []
-        luminance_layer = QgsRasterLayer(context.luminance_path, "Luminance layer")
-
-        for band_id in range(context.input_layer.bandCount()):
-            try:
-                results = processing.run(
-                    'gdal:rastercalculator',
-                    {
-                        # create layer from luminance_layer
-                        'INPUT_A': luminance_layer,
-                        'BAND_A': 1,
-                        'INPUT_B': context.input_layer,
-                        'BAND_B': band_id + 1,
-                        'INPUT_C': context.slope_path,
-                        'BAND_C': 1,
-                        'FORMULA': f'((B*{context.sza_cosine()}*cos(deg2rad(C)))/A)',
-                        'OUTPUT': 'TEMPORARY_OUTPUT',
-                    },
-                    feedback=context.qgis_feedback,
-                    context=context.qgis_context
-                )
-                result_bands.append(results['OUTPUT'])
-            except QgsProcessingException as exc:
-                raise RuntimeError(f"Error during performing topocorrection: {exc}")
-
-            if context.qgis_feedback.isCanceled():
-                return {}
-
-        return processing.runAndLoadResults(
-            "gdal:merge",
-            {
-                'INPUT': result_bands,
-                'PCT': False,
-                'SEPARATE': True,
-                'NODATA_INPUT': None,
-                'NODATA_OUTPUT': None,
-                'OPTIONS': '',
-                'EXTRA': '',
-                'DATA_TYPE': 5,
-                'OUTPUT': context.qgis_params['OUTPUT']
-            },
-            feedback=context.qgis_feedback,
-            context=context.qgis_context
-        )
+        # add validation
+        return self.algorithms[tc_algorithm_name].process(topo_context)
 
     def build_slope_layer(self, feedback, context, dem_layer) -> str:
         results = processing.run(
@@ -346,7 +280,8 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 'BAND_B': 1,
                 'FORMULA': f'(cos({sza_radians})*cos(deg2rad(A)) + '
                            f'sin({sza_radians})*sin(deg2rad(A))*cos(deg2rad(B) - {solar_azimuth_radians}))',
-                'OUTPUT': 'TEMPORARY_OUTPUT'
+                'OUTPUT': 'TEMPORARY_OUTPUT',
+                'NO_DATA': 0
             },
             feedback=feedback,
             context=context,
