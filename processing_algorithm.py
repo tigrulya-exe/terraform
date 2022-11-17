@@ -13,7 +13,10 @@ import processing
 
 from algorithms.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
 from algorithms.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
+from algorithms.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
 from algorithms.ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
+from computation.qgis_utils import add_layer_to_project
+
 
 class TopoCorrectionContext:
     def __init__(
@@ -55,7 +58,8 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         self.algorithms = {
             ScsTopoCorrectionAlgorithm.get_name(): ScsTopoCorrectionAlgorithm(),
             CosineTTopoCorrectionAlgorithm.get_name(): CosineTTopoCorrectionAlgorithm(),
-            CosineCTopoCorrectionAlgorithm.get_name(): CosineCTopoCorrectionAlgorithm()
+            CosineCTopoCorrectionAlgorithm.get_name(): CosineCTopoCorrectionAlgorithm(),
+            MinnaertTopoCorrectionAlgorithm.get_name(): MinnaertTopoCorrectionAlgorithm()
         }
 
     def tr(self, string):
@@ -239,7 +243,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         )
 
         result_path = results['OUTPUT']
-        self.add_layer_to_project(context, result_path, "Slope_gen")
+        self._add_layer_to_project(context, result_path, "Slope_gen")
 
         return result_path
 
@@ -263,7 +267,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         )
 
         result_path = results['OUTPUT']
-        self.add_layer_to_project(context, result_path, "Aspect_gen")
+        self._add_layer_to_project(context, result_path, "Aspect_gen")
 
         return result_path
 
@@ -288,16 +292,9 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             is_child_algorithm=True
         )
         result_path = results['OUTPUT']
-        self.add_layer_to_project(context, result_path, "Luminance_gen")
+        self._add_layer_to_project(context, result_path, "Luminance_gen")
         return result_path
 
-    def add_layer_to_project(self, context, layer_path, name="out"):
+    def _add_layer_to_project(self, context, layer_path, name="out"):
         if self.show_tmp_layers:
-            context.addLayerToLoadOnCompletion(
-                layer_path,
-                QgsProcessingContext.LayerDetails(
-                    name,
-                    QgsProject.instance(),
-                    layerTypeHint=QgsProcessingUtils.LayerHint.Raster
-                )
-            )
+            add_layer_to_project(context, layer_path, name)

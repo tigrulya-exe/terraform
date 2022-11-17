@@ -40,10 +40,14 @@ class TopoCorrectionAlgorithm:
     def get_name():
         pass
 
+    def init(self, ctx: TopoCorrectionContext):
+        pass
+
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         pass
 
     def process(self, ctx: TopoCorrectionContext) -> Dict[str, Any]:
+        self.init(ctx)
         result_bands = []
 
         for band_idx in range(ctx.input_layer.bandCount()):
