@@ -19,8 +19,9 @@ class ScsTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_B': band_idx + 1,
                 'INPUT_C': ctx.slope_path,
                 'BAND_C': 1,
-                'FORMULA': f'((B*{ctx.sza_cosine()}*cos(deg2rad(C)))/A)',
+                'FORMULA': f'(B*{ctx.sza_cosine()}*cos(deg2rad(C)))/A',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
+                'NO_DATA': 0
             },
             feedback=ctx.qgis_feedback,
             context=ctx.qgis_context

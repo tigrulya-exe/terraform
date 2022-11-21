@@ -197,11 +197,6 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         luminance_path = self.compute_luminance(
             feedback, context, slope_path, aspect_path, solar_zenith_angle, solar_azimuth)
 
-        # QgsProcessingUtils.mapLayerFromString(luminance_path, context)
-        # luminance_layer = QgsRasterLayer(luminance_path, "Luminance")
-        # luminance_layer.setExtent(input_layer.extent())
-        # QgsProject.instance().layerTreeRoot().addLayer(luminance_layer)
-
         if feedback.isCanceled():
             return {}
 
@@ -232,9 +227,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 'SCALE': 1,
                 'AS_PERCENT': False,
                 'COMPUTE_EDGES': True,
-                'ZEVENBERGEN': False,
-                'OPTIONS': '',
-                'EXTRA': '',
+                'ZEVENBERGEN': True,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             },
             feedback=feedback,
@@ -256,9 +249,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 'TRIG_ANGLE': False,
                 'ZERO_FLAT': True,
                 'COMPUTE_EDGES': True,
-                'ZEVENBERGEN': False,
-                'OPTIONS': '',
-                'EXTRA': '',
+                'ZEVENBERGEN': True,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             },
             feedback=feedback,
@@ -285,7 +276,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 'FORMULA': f'(cos({sza_radians})*cos(deg2rad(A)) + '
                            f'sin({sza_radians})*sin(deg2rad(A))*cos(deg2rad(B) - {solar_azimuth_radians}))',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
-                'NO_DATA': 0
+                # 'NO_DATA': 0
             },
             feedback=feedback,
             context=context,

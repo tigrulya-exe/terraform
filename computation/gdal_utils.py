@@ -5,7 +5,7 @@ from osgeo import gdal
 from osgeo.gdal import Band
 from osgeo.gdalconst import GA_ReadOnly
 import numpy as np
-
+from numpy.polynomial.polynomial import Polynomial
 
 class OutOfCoreRegressor:
     def __init__(self):
@@ -16,19 +16,17 @@ class OutOfCoreRegressor:
         self.xy_sum = 0.0
         self.elements_num = 0
 
-    def partial_train(self, x, y, qgis_feedback):
+    def partial_train(self, x, y):
         np.set_printoptions(threshold=np.inf)
 
-        x_wo_nan = x.ravel()
-        y_wo_nan = y.ravel()
-        self.x_sum += np.sum(x_wo_nan)
-        # if np.isinf(self.x_sum):
-        #     qgis_feedback.pushInfo(f'gg{self.elements_num}-{x_wo_nan} ++++++ {y_wo_nan}')
-        self.y_sum += np.sum(y_wo_nan)
-        self.x_square_sum += np.dot(x_wo_nan, x_wo_nan.T)
-        self.xy_sum += np.dot(x_wo_nan, y_wo_nan.T)
-        self.elements_num += len(x_wo_nan)
-        qgis_feedback.pushInfo(f'resssss -> {self.x_sum}-{self.y_sum}-{self.x_square_sum}-{self.xy_sum}-{self.elements_num}')
+        x_flat = x.ravel()
+        y_flat = y.ravel()
+        self.x_sum += np.sum(x_flat)
+        self.y_sum += np.sum(y_flat)
+        self.x_square_sum += np.dot(x_flat, x_flat.T)
+        self.xy_sum += np.dot(x_flat, y_flat.T)
+        self.elements_num += len(x_flat)
+
 
     def train(self):
         a = np.array([
@@ -37,6 +35,24 @@ class OutOfCoreRegressor:
         ], dtype='float')
         b = np.array([self.xy_sum, self.y_sum], dtype='float')
         return np.linalg.solve(a, b)
+
+
+def raster_linear_regression_full(x_path: str, y_path: str):
+    x_ds = gdal.Open(x_path, GA_ReadOnly)
+    y_ds = gdal.Open(y_path, GA_ReadOnly)
+
+    x_band = x_ds.GetRasterBand(1)
+    x_flat = x_band.ReadAsArray().ravel()
+
+    y_band = y_ds.GetRasterBand(1)
+    y_flat = y_band.ReadAsArray().ravel()
+
+    res = np.polynomial.polynomial.polyfit(x_flat, y_flat, 1)
+
+    band_weights = [res]
+    print(res)
+
+    return band_weights
 
 def raster_linear_regression(x_path: str, y_path: str, qgis_feedback) -> List[List[float]]:
     x_ds = gdal.Open(x_path, GA_ReadOnly)
@@ -49,7 +65,7 @@ def raster_linear_regression(x_path: str, y_path: str, qgis_feedback) -> List[Li
         y_band = y_ds.GetRasterBand(iBand)
 
         regressor = OutOfCoreRegressor()
-        for i in range(y_band.YSize - 1, -1, -1):
+        for i in range(y_band.YSize):
             x_scanline = read_hline(x_band, i)
             y_scanline = read_hline(y_band, i)
 
@@ -59,6 +75,7 @@ def raster_linear_regression(x_path: str, y_path: str, qgis_feedback) -> List[Li
         band_weights.append(weights)
 
     return band_weights
+
 
 def compute_band_means(input_path: str) -> List[float]:
     ds = gdal.Open(input_path, GA_ReadOnly)

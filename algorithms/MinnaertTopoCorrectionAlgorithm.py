@@ -10,19 +10,18 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         x = processing.run(
             'gdal:rastercalculator',
             {
-                # create layer from luminance_layer
                 'INPUT_A': ctx.slope_path,
                 'BAND_A': 1,
                 'INPUT_B': ctx.luminance_path,
                 'BAND_B': 1,
-                'FORMULA': f'log(cos(deg2rad(A)) * fmax(0, B) + 0.00001)',
+                'FORMULA': f'log(cos(deg2rad(A)) * fmax(0.00001, B))',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,
             context=ctx.qgis_context
         )
         self.x_path = x['OUTPUT']
-        add_layer_to_project(ctx.qgis_context, self.x_path, "x")
+        # add_layer_to_project(ctx.qgis_context, self.x_path, "x")
 
     @staticmethod
     def get_name():
@@ -37,7 +36,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_A': 1,
                 'INPUT_B': ctx.input_layer,
                 'BAND_B': band_idx + 1,
-                'FORMULA': f'log(cos(deg2rad(A)) * B + 0.00001)',
+                'FORMULA': f'log(cos(deg2rad(A)) * fmax(0.00001, B))',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,
@@ -46,9 +45,9 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         y_path = y['OUTPUT']
         # add_layer_to_project(ctx.qgis_context, y_path, f"y_{band_idx}")
 
-        weights = gdal_utils.raster_linear_regression(self.x_path, y_path, ctx.qgis_feedback)
+        weights = gdal_utils.raster_linear_regression_full(self.x_path, y_path)
         ctx.qgis_feedback.pushInfo(f'{weights}')
-        k = weights[0][0]
+        k = weights[0][1]
 
         result = processing.run(
             'gdal:rastercalculator',
@@ -58,7 +57,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_A': 1,
                 'INPUT_B': ctx.input_layer,
                 'BAND_B': band_idx + 1,
-                'FORMULA': f'B * (({ctx.sza_cosine()}/A) ** {k})',
+                'FORMULA': f'B * power({ctx.sza_cosine()}/A, {k})',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,
