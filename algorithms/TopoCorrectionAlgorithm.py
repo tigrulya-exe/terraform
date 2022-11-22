@@ -12,7 +12,7 @@ class TopoCorrectionContext:
             qgis_feedback: QgsProcessingFeedback,
             qgis_params: Dict[str, Any],
             input_layer: QgsRasterLayer,
-            slope_path: str,
+            slope_rad_path: str,
             aspect_path: str,
             luminance_path: str,
             solar_zenith_angle: float,
@@ -21,7 +21,7 @@ class TopoCorrectionContext:
         self.qgis_params = qgis_params
         self.qgis_feedback = qgis_feedback
         self.input_layer = input_layer
-        self.slope_path = slope_path
+        self.slope_rad_path = slope_rad_path
         self.aspect_path = aspect_path
         self.luminance_path = luminance_path
         self.solar_zenith_angle = solar_zenith_angle

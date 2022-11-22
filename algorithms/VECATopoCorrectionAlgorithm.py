@@ -1,17 +1,16 @@
 import processing
-from computation import gdal_utils
 
-from algorithms.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
+from algorithms.SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
+from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
 
 
-class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
+class VECATopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "COSINE-C"
+        return "VECA"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
-        # todo add validation
-        luminance_mean = gdal_utils.compute_band_means(ctx.luminance_path)[0]
+        intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
 
         result = processing.run(
             'gdal:rastercalculator',
@@ -20,7 +19,7 @@ class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_A': 1,
                 'INPUT_B': ctx.input_layer,
                 'BAND_B': band_idx + 1,
-                'FORMULA': f'B*(1 + ({luminance_mean} - A)/{luminance_mean})',
+                'FORMULA': f'B * mean(B)/({slope} * A + {intercept})',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,

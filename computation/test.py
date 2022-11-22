@@ -83,7 +83,7 @@ def raster_linear_regression_full(x_path: str, y_path: str):
     return band_weights
 
 
-def create_test_file(outFileName, xsize=2000, ysize=1000, generator=lambda x, y: x*y):
+def create_test_file(outFileName, xsize=200, ysize=100, generator=lambda x, y: x*y):
     driver = gdal.GetDriverByName("GTiff")
     outdata = driver.Create(outFileName, xsize=xsize, ysize=ysize, bands=1, eType=gdal.GDT_Int32)
 
@@ -95,8 +95,8 @@ def create_test_file(outFileName, xsize=2000, ysize=1000, generator=lambda x, y:
 def test():
     x_path = "./x.tif"
     y_path = "./y.tif"
-    # create_test_file(x_path)
-    # create_test_file(y_path, generator=lambda x, y: 4 * y * x + 1)
+    create_test_file(x_path)
+    create_test_file(y_path, generator=lambda x, y: 4 * y * x + 1)
     raster_linear_regression_full(x_path, y_path)
 
 test()

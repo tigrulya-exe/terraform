@@ -2,7 +2,6 @@ import processing
 
 from algorithms.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
 from computation import gdal_utils
-from computation.qgis_utils import add_layer_to_project
 
 
 class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
@@ -10,11 +9,11 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         x = processing.run(
             'gdal:rastercalculator',
             {
-                'INPUT_A': ctx.slope_path,
+                'INPUT_A': ctx.slope_rad_path,
                 'BAND_A': 1,
                 'INPUT_B': ctx.luminance_path,
                 'BAND_B': 1,
-                'FORMULA': f'log(cos(deg2rad(A)) * fmax(0.00001, B))',
+                'FORMULA': f'log(cos(A) * fmax(0.00001, B))',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,
@@ -28,26 +27,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         return "Minnaert"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
-        y = processing.run(
-            'gdal:rastercalculator',
-            {
-                # create layer from luminance_layer
-                'INPUT_A': ctx.slope_path,
-                'BAND_A': 1,
-                'INPUT_B': ctx.input_layer,
-                'BAND_B': band_idx + 1,
-                'FORMULA': f'log(cos(deg2rad(A)) * fmax(0.00001, B))',
-                'OUTPUT': 'TEMPORARY_OUTPUT',
-            },
-            feedback=ctx.qgis_feedback,
-            context=ctx.qgis_context
-        )
-        y_path = y['OUTPUT']
-        # add_layer_to_project(ctx.qgis_context, y_path, f"y_{band_idx}")
-
-        weights = gdal_utils.raster_linear_regression_full(self.x_path, y_path)
-        ctx.qgis_feedback.pushInfo(f'{weights}')
-        k = weights[0][1]
+        k = self.calculate_k(ctx, band_idx)
 
         result = processing.run(
             'gdal:rastercalculator',
@@ -64,3 +44,26 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             context=ctx.qgis_context
         )
         return result['OUTPUT']
+
+    def calculate_k(self, ctx: TopoCorrectionContext, band_idx: int):
+        y_path = self.calculate_y(ctx, band_idx)
+        intercept, slope = gdal_utils.raster_linear_regression(self.x_path, y_path)
+        ctx.qgis_feedback.pushInfo(f'{(intercept, slope)}')
+        return slope
+
+    def calculate_y(self, ctx: TopoCorrectionContext, band_idx: int) -> str:
+        y = processing.run(
+            'gdal:rastercalculator',
+            {
+                # create layer from luminance_layer
+                'INPUT_A': ctx.slope_rad_path,
+                'BAND_A': 1,
+                'INPUT_B': ctx.input_layer,
+                'BAND_B': band_idx + 1,
+                'FORMULA': f'log(cos(A) * fmax(0.00001, B))',
+                'OUTPUT': 'TEMPORARY_OUTPUT',
+            },
+            feedback=ctx.qgis_feedback,
+            context=ctx.qgis_context
+        )
+        return y['OUTPUT']

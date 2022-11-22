@@ -1,17 +1,16 @@
 import processing
-from computation import gdal_utils
 
-from algorithms.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
+from algorithms.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
+from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
 
 
-class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
+class MinnaertScsTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "COSINE-C"
+        return "Minnaert-SCS"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
-        # todo add validation
-        luminance_mean = gdal_utils.compute_band_means(ctx.luminance_path)[0]
+        k = self.calculate_k(ctx, band_idx)
 
         result = processing.run(
             'gdal:rastercalculator',
@@ -20,7 +19,9 @@ class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_A': 1,
                 'INPUT_B': ctx.input_layer,
                 'BAND_B': band_idx + 1,
-                'FORMULA': f'B*(1 + ({luminance_mean} - A)/{luminance_mean})',
+                'INPUT_C': ctx.slope_rad_path,
+                'BAND_C': 1,
+                'FORMULA': f'B * cos(C) * power({ctx.sza_cosine()}/A, {k})',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,
