@@ -21,7 +21,7 @@ class MinnaertScsTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
                 'BAND_B': band_idx + 1,
                 'INPUT_C': ctx.slope_rad_path,
                 'BAND_C': 1,
-                'FORMULA': f'B * cos(C) * power({ctx.sza_cosine()}/A, {k})',
+                'FORMULA': f"B * cos(C) * power({self.safe_divide(ctx.sza_cosine(), 'A')}, {k})",
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,

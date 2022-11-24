@@ -19,7 +19,7 @@ class ScsTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_B': band_idx + 1,
                 'INPUT_C': ctx.slope_rad_path,
                 'BAND_C': 1,
-                'FORMULA': f'(B*{ctx.sza_cosine()}*cos(C))/A',
+                'FORMULA': f"{ctx.sza_cosine()}*cos(C)*{self.safe_divide('B', 'A')}",
                 'OUTPUT': 'TEMPORARY_OUTPUT',
                 'NO_DATA': 0
             },

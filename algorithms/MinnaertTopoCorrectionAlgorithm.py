@@ -3,7 +3,6 @@ import processing
 from algorithms.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
 from computation import gdal_utils
 
-
 class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     def init(self, ctx: TopoCorrectionContext):
         x = processing.run(
@@ -13,7 +12,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_A': 1,
                 'INPUT_B': ctx.luminance_path,
                 'BAND_B': 1,
-                'FORMULA': f'log(cos(A) * fmax(0.00001, B))',
+                'FORMULA': f'log(cos(A) * B, zeros_like(A), where=(B!=0))',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,
@@ -37,7 +36,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_A': 1,
                 'INPUT_B': ctx.input_layer,
                 'BAND_B': band_idx + 1,
-                'FORMULA': f'B * power({ctx.sza_cosine()}/A, {k})',
+                'FORMULA': f"B * power({self.safe_divide(ctx.sza_cosine(), 'A')}, {k})",
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,
@@ -47,6 +46,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
 
     def calculate_k(self, ctx: TopoCorrectionContext, band_idx: int):
         y_path = self.calculate_y(ctx, band_idx)
+        # add_layer_to_project(ctx.qgis_context, y_path, f"y_{band_idx}")
         intercept, slope = gdal_utils.raster_linear_regression(self.x_path, y_path)
         ctx.qgis_feedback.pushInfo(f'{(intercept, slope)}')
         return slope
@@ -60,7 +60,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_A': 1,
                 'INPUT_B': ctx.input_layer,
                 'BAND_B': band_idx + 1,
-                'FORMULA': f'log(cos(A) * fmax(0.00001, B))',
+                'FORMULA': f'log(cos(A) * B, zeros_like(A), where=(B!=0))',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,

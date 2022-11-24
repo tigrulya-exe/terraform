@@ -21,7 +21,7 @@ class PBMTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
                 'BAND_B': band_idx + 1,
                 'INPUT_C': ctx.slope_rad_path,
                 'BAND_C': 1,
-                'FORMULA': f'B * cos(C) / power(cos(C) * A, {k})',
+                'FORMULA': f"{self.safe_divide_check('B * cos(C)', f'power(cos(C) * A, {k})', 'A')}",
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,

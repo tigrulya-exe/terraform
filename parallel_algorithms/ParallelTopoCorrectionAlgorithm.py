@@ -1,50 +1,24 @@
-import textwrap
-from math import cos, radians
+import string, random
 from typing import Dict, Any
 
 import processing
-from qgis._core import QgsRasterLayer, QgsProcessingContext, QgsProcessingFeedback
+from qgis._core import QgsTask, QgsApplication
 from qgis.core import (QgsProcessingException)
 
-class TopoCorrectionContext:
-    def __init__(
-            self,
-            qgis_context: QgsProcessingContext,
-            qgis_feedback: QgsProcessingFeedback,
-            qgis_params: Dict[str, Any],
-            input_layer: QgsRasterLayer,
-            slope_rad_path: str,
-            aspect_path: str,
-            luminance_path: str,
-            solar_zenith_angle: float,
-            solar_azimuth: float):
-        self.qgis_context = qgis_context
-        self.qgis_params = qgis_params
-        self.qgis_feedback = qgis_feedback
-        self.input_layer = input_layer
-        self.slope_rad_path = slope_rad_path
-        self.aspect_path = aspect_path
-        self.luminance_path = luminance_path
-        self.solar_zenith_angle = solar_zenith_angle
-        self.solar_azimuth = solar_azimuth
-
-    def sza_cosine(self):
-        return cos(radians(self.solar_zenith_angle))
-
-    def azimuth_cosine(self):
-        return cos(radians(self.solar_azimuth))
+from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
 
 
-class TopoCorrectionAlgorithm:
+class ParallelTopoCorrectionAlgorithm:
 
     @staticmethod
     def get_name():
         pass
 
     def init(self, ctx: TopoCorrectionContext):
-        pass
+        self.taskManager = QgsApplication.taskManager()
+        self.salt = random_word(5)
 
-    def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
+    def build_task(self, ctx: TopoCorrectionContext, band_idx: int) -> QgsTask:
         pass
 
     def safe_divide(self, top: str, bottom: str) -> str:
@@ -53,20 +27,38 @@ class TopoCorrectionAlgorithm:
     def safe_divide_check(self, top: str, bottom: str, null_check: str) -> str:
         return f"divide({top}, {bottom}, out=zeros_like({bottom}, dtype='float32'), where={null_check}!=0)"
 
+
+    def get_band_output(self, band_idx: int) -> QgsTask:
+        pass
+
+    def get_band_output_name(self, band_idx: int) -> str:
+        return f'out-{self.salt}-{band_idx}'
+
     def process(self, ctx: TopoCorrectionContext) -> Dict[str, Any]:
         self.init(ctx)
-        result_bands = []
+        tasks_per_band = []
 
         for band_idx in range(ctx.input_layer.bandCount()):
             try:
-                result = self.process_band(ctx, band_idx)
-                result_bands.append(result)
+                result = self.build_task(ctx, band_idx)
+                tasks_per_band.append(result)
             except QgsProcessingException as exc:
                 raise RuntimeError(f"Error during performing topocorrection: {exc}")
 
             if ctx.qgis_feedback.isCanceled():
                 # todo
                 return {}
+
+        [self.taskManager.addTask(task) for task in tasks_per_band]
+
+        for task in tasks_per_band:
+            while task.isActive():
+                if task.waitForFinished(1000):
+                    continue
+                if ctx.qgis_feedback.isCanceled():
+                    return {}
+
+        result_bands = [self.get_band_output_name(band) for band in range(ctx.input_layer.bandCount())]
 
         return processing.runAndLoadResults(
             "gdal:merge",
@@ -84,3 +76,7 @@ class TopoCorrectionAlgorithm:
             feedback=ctx.qgis_feedback,
             context=ctx.qgis_context
         )
+
+def random_word(length):
+    letters = string.ascii_lowercase
+    return ''.join(random.choice(letters) for _ in range(length))

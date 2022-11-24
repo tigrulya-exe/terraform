@@ -12,12 +12,11 @@ class CosineTTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         result = processing.run(
             'gdal:rastercalculator',
             {
-                # create layer from luminance_layer
                 'INPUT_A': ctx.luminance_path,
                 'BAND_A': 1,
                 'INPUT_B': ctx.input_layer,
                 'BAND_B': band_idx + 1,
-                'FORMULA': f'(B*{ctx.sza_cosine()})/A',
+                'FORMULA': f"{ctx.sza_cosine()} * {self.safe_divide('B', 'A')}",
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,

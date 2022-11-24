@@ -22,6 +22,7 @@ from algorithms.TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressio
 from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
 from algorithms.VECATopoCorrectionAlgorithm import VECATopoCorrectionAlgorithm
 from computation.qgis_utils import add_layer_to_project
+from parallel_algorithms.CosineCTopoCorrectionAlgorithm import CosineTParallelTopoCorrectionAlgorithm
 
 
 # from processing.core.ProcessingConfig import ProcessingConfig
@@ -43,6 +44,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             PBMTopoCorrectionAlgorithm.get_name(): PBMTopoCorrectionAlgorithm(),
             VECATopoCorrectionAlgorithm.get_name(): VECATopoCorrectionAlgorithm(),
             TeilletRegressionTopoCorrectionAlgorithm.get_name(): TeilletRegressionTopoCorrectionAlgorithm(),
+            CosineTParallelTopoCorrectionAlgorithm.get_name(): CosineTParallelTopoCorrectionAlgorithm()
         }
 
     def tr(self, string):
@@ -272,10 +274,9 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 'BAND_A': 1,
                 'INPUT_B': aspect_path,
                 'BAND_B': 1,
-                'FORMULA': f'(cos({sza_radians})*cos(A) + '
-                           f'sin({sza_radians})*sin(A)*cos(deg2rad(B) - {solar_azimuth_radians}))',
+                'FORMULA': f'fmax(0.0, (cos({sza_radians})*cos(A) + '
+                           f'sin({sza_radians})*sin(A)*cos(deg2rad(B) - {solar_azimuth_radians})))',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
-                # 'NO_DATA': 0
             },
             feedback=feedback,
             context=context,
