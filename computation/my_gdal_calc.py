@@ -47,6 +47,7 @@ sum all files with hidden noDataValue
     Calc(calc="sum(a,axis=0)", a=['0.tif','1.tif','2.tif'], outfile="sum.tif", hideNoData=True)
 """
 
+
 def Calc(
         calc: MaybeSequence[str],
         # output file to generate or fill
@@ -74,13 +75,12 @@ def Calc(
         # extent corners given in georeferenced coordinates
         projwin: Optional[Union[Tuple, GeoRectangle]] = None,
         # user defined variables for eval
-        user_namespace: Optional[Dict]=None,
+        user_namespace: Optional[Dict] = None,
         # print debugging information
         debug: bool = False,
         # suppress progress messages
         quiet: bool = False,
         **input_files):
-
     if debug:
         print(f"gdal_calc.py starting calculation {calc}")
 
@@ -151,92 +151,79 @@ def Calc(
     myAlphaFileLists = []  # list of the Alphas which holds a list of inputs
 
     # loop through input files - checking dimensions
-    for alphas, filenames in input_files.items():
-        if isinstance(filenames, (list, tuple)):
-            # alpha is a list of files
-            myAlphaFileLists.append(alphas)
-        elif is_path_like(filenames) or isinstance(filenames, gdal.Dataset):
-            # alpha is a single filename or a Dataset
-            filenames = [filenames]
-            alphas = [alphas]
-        else:
-            # I guess this alphas should be in the global_namespace,
-            # It would have been better to pass it as user_namepsace, but I'll accept it anyway
-            global_namespace[alphas] = filenames
-            continue
-        for alpha, filename in zip(alphas * len(filenames), filenames):
-            if not alpha.endswith("_band"):
-                # check if we have asked for a specific band...
-                alpha_band = f"{alpha}_band"
-                if alpha_band in input_files:
-                    myBand = input_files[alpha_band]
-                else:
-                    myBand = 1
+    for alpha, filename in input_files.items():
+        if not alpha.endswith("_band"):
+            # check if we have asked for a specific band...
+            alpha_band = f"{alpha}_band"
+            if alpha_band in input_files:
+                myBand = input_files[alpha_band]
+            else:
+                myBand = 1
 
-                myF_is_ds = not is_path_like(filename)
-                if myF_is_ds:
-                    myFile = filename
-                    filename = None
-                else:
-                    myFile = open_ds(filename, gdal.GA_ReadOnly)
-                if not myFile:
-                    raise IOError(f"No such file or directory: '{filename}'")
+            myF_is_ds = not is_path_like(filename)
+            if myF_is_ds:
+                myFile = filename
+                filename = None
+            else:
+                myFile = open_ds(filename, gdal.GA_ReadOnly)
+            if not myFile:
+                raise IOError(f"No such file or directory: '{filename}'")
 
-                myFileNames.append(filename)
-                myFiles.append(myFile)
-                myBands.append(myBand)
-                myAlphaList.append(alpha)
-                dt = myFile.GetRasterBand(myBand).DataType
-                myDataType.append(gdal.GetDataTypeName(dt))
-                myDataTypeNum.append(dt)
-                myNDV.append(None if hideNoData else myFile.GetRasterBand(myBand).GetNoDataValue())
+            myFileNames.append(filename)
+            myFiles.append(myFile)
+            myBands.append(myBand)
+            myAlphaList.append(alpha)
+            dt = myFile.GetRasterBand(myBand).DataType
+            myDataType.append(gdal.GetDataTypeName(dt))
+            myDataTypeNum.append(dt)
+            myNDV.append(None if hideNoData else myFile.GetRasterBand(myBand).GetNoDataValue())
 
-                # check that the dimensions of each layer are the same
-                myFileDimensions = [myFile.RasterXSize, myFile.RasterYSize]
-                if DimensionsCheck:
-                    if DimensionsCheck != myFileDimensions:
-                        GeoTransformDiffer = True
-                        if extent in [Extent.IGNORE, Extent.FAIL]:
-                            raise Exception(
-                                f"Error! Dimensions of file {filename} ({myFileDimensions[0]:d}, "
-                                f"{myFileDimensions[1]:d}) are different from other files "
-                                f"({DimensionsCheck[0]:d}, {DimensionsCheck[1]:d}).  Cannot proceed")
-                else:
-                    DimensionsCheck = myFileDimensions
-
-                # check that the Projection of each layer are the same
-                myProjection = myFile.GetProjection()
-                if ProjectionCheck:
-                    if projectionCheck and ProjectionCheck != myProjection:
+            # check that the dimensions of each layer are the same
+            myFileDimensions = [myFile.RasterXSize, myFile.RasterYSize]
+            if DimensionsCheck:
+                if DimensionsCheck != myFileDimensions:
+                    GeoTransformDiffer = True
+                    if extent in [Extent.IGNORE, Extent.FAIL]:
                         raise Exception(
-                            f"Error! Projection of file {filename} {myProjection} "
-                            f"are different from other files {ProjectionCheck}.  Cannot proceed")
-                else:
-                    ProjectionCheck = myProjection
+                            f"Error! Dimensions of file {filename} ({myFileDimensions[0]:d}, "
+                            f"{myFileDimensions[1]:d}) are different from other files "
+                            f"({DimensionsCheck[0]:d}, {DimensionsCheck[1]:d}).  Cannot proceed")
+            else:
+                DimensionsCheck = myFileDimensions
 
-                # check that the GeoTransforms of each layer are the same
-                myFileGeoTransform = myFile.GetGeoTransform(can_return_null=True)
-                if extent == Extent.IGNORE:
+            # check that the Projection of each layer are the same
+            myProjection = myFile.GetProjection()
+            if ProjectionCheck:
+                if projectionCheck and ProjectionCheck != myProjection:
+                    raise Exception(
+                        f"Error! Projection of file {filename} {myProjection} "
+                        f"are different from other files {ProjectionCheck}.  Cannot proceed")
+            else:
+                ProjectionCheck = myProjection
+
+            # check that the GeoTransforms of each layer are the same
+            myFileGeoTransform = myFile.GetGeoTransform(can_return_null=True)
+            if extent == Extent.IGNORE:
+                GeoTransformCheck = myFileGeoTransform
+            else:
+                Dimensions.append(myFileDimensions)
+                GeoTransforms.append(myFileGeoTransform)
+                if not GeoTransformCheck:
                     GeoTransformCheck = myFileGeoTransform
                 else:
-                    Dimensions.append(myFileDimensions)
-                    GeoTransforms.append(myFileGeoTransform)
-                    if not GeoTransformCheck:
-                        GeoTransformCheck = myFileGeoTransform
-                    else:
-                        my_gt_diff = extent_util.gt_diff(GeoTransformCheck, myFileGeoTransform, eps=compatible_gt_eps,
-                                                         diff_support=gt_diff_support)
-                        if my_gt_diff not in [GT.SAME, GT.ALMOST_SAME]:
-                            GeoTransformDiffer = True
-                            if my_gt_diff != GT.COMPATIBLE_DIFF:
-                                raise Exception(
-                                    f"Error! GeoTransform of file {filename} {myFileGeoTransform} is incompatible "
-                                    f"({gt_diff_error[my_gt_diff]}), first file GeoTransform is {GeoTransformCheck}. "
-                                    f"Cannot proceed")
-                if debug:
-                    print(
-                        f"file {alpha}: {filename}, dimensions: "
-                        f"{DimensionsCheck[0]}, {DimensionsCheck[1]}, type: {myDataType[-1]}")
+                    my_gt_diff = extent_util.gt_diff(GeoTransformCheck, myFileGeoTransform, eps=compatible_gt_eps,
+                                                     diff_support=gt_diff_support)
+                    if my_gt_diff not in [GT.SAME, GT.ALMOST_SAME]:
+                        GeoTransformDiffer = True
+                        if my_gt_diff != GT.COMPATIBLE_DIFF:
+                            raise Exception(
+                                f"Error! GeoTransform of file {filename} {myFileGeoTransform} is incompatible "
+                                f"({gt_diff_error[my_gt_diff]}), first file GeoTransform is {GeoTransformCheck}. "
+                                f"Cannot proceed")
+            if debug:
+                print(
+                    f"file {alpha}: {filename}, dimensions: "
+                    f"{DimensionsCheck[0]}, {DimensionsCheck[1]}, type: {myDataType[-1]}")
 
     # process allBands option
     allBandsIndex = None
@@ -255,7 +242,7 @@ def Calc(
         allBandsCount = len(calc)
 
     if extent not in [Extent.IGNORE, Extent.FAIL] and (
-        GeoTransformDiffer or isinstance(extent, GeoRectangle)):
+            GeoTransformDiffer or isinstance(extent, GeoRectangle)):
         # mixing different GeoTransforms/Extents
         GeoTransformCheck, DimensionsCheck, ExtentCheck = extent_util.calc_geotransform_and_dimensions(
             GeoTransforms, Dimensions, extent)

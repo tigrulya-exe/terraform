@@ -4,8 +4,10 @@ from numpy.polynomial import Polynomial
 from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly
 import numpy as np
+from osgeo_utils.auxiliary.util import open_ds
 
 from computation.gdal_utils import read_hline
+from computation.my_simple_calc import SimpleRasterCalc, RasterInfo
 
 
 class OutOfCoreRegressor:
@@ -92,11 +94,36 @@ def create_test_file(outFileName, xsize=200, ysize=100, generator=lambda x, y: x
     outdata.GetRasterBand(1).WriteArray(raster)
 
 
-def test():
+def test1():
     x_path = "./x.tif"
     y_path = "./y.tif"
     create_test_file(x_path)
     create_test_file(y_path, generator=lambda x, y: 4 * y * x + 1)
     raster_linear_regression_full(x_path, y_path)
+
+def test():
+    x_path = "./x.tif"
+    y_path = "./y.tif"
+    res_path = "./res.tif"
+    create_test_file(x_path, generator=lambda x, y: 1)
+    create_test_file(y_path, generator=lambda x, y: 2)
+
+    def test_func(**kwargs):
+        return kwargs["x"] + kwargs["y"]
+
+    calc = SimpleRasterCalc()
+    calc.calculate(
+        func=test_func,
+        output_path=res_path,
+        raster_infos=[
+            RasterInfo("x", x_path, 1),
+            RasterInfo("y", y_path, 1)
+        ],
+        debug=True
+    )
+
+    res_ds = open_ds(res_path)
+    res_ds.GetRasterBand(1).GetStatistics(1, 1)
+
 
 test()

@@ -1,19 +1,57 @@
-import os
-import os.path
-import string
-from collections import defaultdict
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# ******************************************************************************
+#
+#  Project:  GDAL
+#  Purpose:  Command line raster calculator with numpy syntax
+#  Author:   Chris Yesson, chris.yesson@ioz.ac.uk
+#
+# ******************************************************************************
+#  Copyright (c) 2010, Chris Yesson <chris.yesson@ioz.ac.uk>
+#  Copyright (c) 2010-2011, Even Rouault <even dot rouault at spatialys.com>
+#  Copyright (c) 2016, Piers Titus van der Torren <pierstitus@gmail.com>
+#  Copyright (c) 2020, Idan Miara <idan@miara.com>
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a
+#  copy of this software and associated documentation files (the "Software"),
+#  to deal in the Software without restriction, including without limitation
+#  the rights to use, copy, modify, merge, publish, distribute, sublicense,
+#  and/or sell copies of the Software, and to permit persons to whom the
+#  Software is furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included
+#  in all copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+#  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+#  THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+#  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+#  DEALINGS IN THE SOFTWARE.
+# ******************************************************************************
+
+import textwrap
 from numbers import Number
 from typing import Union, Tuple, Optional, Sequence, Dict
+import argparse
+import os
+import os.path
+import sys
+import string
+from collections import defaultdict
 
 import numpy
+
 from osgeo import gdal
 from osgeo import gdal_array
-from osgeo_utils.auxiliary import extent_util
 from osgeo_utils.auxiliary.base import is_path_like, PathLikeOrStr, MaybeSequence
-from osgeo_utils.auxiliary.color_table import get_color_table, ColorTableLike
-from osgeo_utils.auxiliary.extent_util import Extent, GT
-from osgeo_utils.auxiliary.rectangle import GeoRectangle
 from osgeo_utils.auxiliary.util import GetOutputDriverFor, open_ds
+from osgeo_utils.auxiliary.extent_util import Extent, GT
+from osgeo_utils.auxiliary import extent_util
+from osgeo_utils.auxiliary.rectangle import GeoRectangle
+from osgeo_utils.auxiliary.color_table import get_color_table, ColorTableLike
+from osgeo_utils.auxiliary.gdal_argparse import GDALArgumentParser, GDALScript
 
 GDALDataType = int
 
@@ -47,24 +85,14 @@ sum all files with hidden noDataValue
     Calc(calc="sum(a,axis=0)", a=['0.tif','1.tif','2.tif'], outfile="sum.tif", hideNoData=True)
 """
 
-def Calc(
-        calc: MaybeSequence[str],
-        outfile: Optional[PathLikeOrStr] = None,
-        NoDataValue: Optional[Number] = None,
-        type: Optional[Union[GDALDataType, str]] = None,
-        format: Optional[str] = None,
-        creation_options: Optional[Sequence[str]] = None,
-        allBands: str = '',
-        overwrite: bool = False,
-        hideNoData: bool = False,
-        projectionCheck: bool = False,
-        color_table: Optional[ColorTableLike] = None,
-        extent: Optional[Extent] = None,
-        projwin: Optional[Union[Tuple, GeoRectangle]] = None,
-        user_namespace: Optional[Dict]=None,
-        debug: bool = False,
-        quiet: bool = False,
-        **input_files):
+def Calc(calc: MaybeSequence[str], outfile: Optional[PathLikeOrStr] = None, NoDataValue: Optional[Number] = None,
+         type: Optional[Union[GDALDataType, str]] = None, format: Optional[str] = None,
+         creation_options: Optional[Sequence[str]] = None, allBands: str = '', overwrite: bool = False,
+         hideNoData: bool = False, projectionCheck: bool = False,
+         color_table: Optional[ColorTableLike] = None,
+         extent: Optional[Extent] = None, projwin: Optional[Union[Tuple, GeoRectangle]] = None,
+         user_namespace: Optional[Dict]=None,
+         debug: bool = False, quiet: bool = False, **input_files):
 
     if debug:
         print(f"gdal_calc.py starting calculation {calc}")
@@ -512,3 +540,128 @@ def doit(opts):
     if 'outF' in kwargs:
         kwargs["outfile"] = kwargs.pop('outF')
     return Calc(**kwargs)
+
+
+class GDALCalc(GDALScript):
+    def __init__(self):
+        super().__init__()
+        self.title = 'Raster calculator with numpy syntax'
+        self.description = textwrap.dedent('''\
+            Use any basic arithmetic supported by numpy arrays such as +, -, *, and
+            along with logical operators such as >.
+            Note that all files must have the same dimensions (unless extent option is used),
+            but no projection checking is performed (unless projectionCheck option is used).''')
+        # add an explicit --help option because the standard -h/--help option is not valid as -h is an alpha option
+        self.add_help = '--help'
+        self.optfile_arg = "--optfile"
+
+        self.add_example('add two files together',
+                         '-A input1.tif -B input2.tif --outfile=result.tif --calc="A+B"')
+        self.add_example('average of two layers',
+                         '-A input.tif -B input2.tif --outfile=result.tif --calc="(A+B)/2"')
+        self.add_example('set values of zero and below to null',
+                         '-A input.tif --outfile=result.tif --calc="A*(A>0)" --NoDataValue=0')
+        self.add_example('using logical operator to keep a range of values from input',
+                         '-A input.tif --outfile=result.tif --calc="A*logical_and(A>100,A<150)"')
+        self.add_example('work with multiple bands',
+                         '-A input.tif --A_band=1 -B input.tif --B_band=2 '
+                         '--outfile=result.tif --calc="(A+B)/2" --calc="A*logical_and(A>100,A<150)"')
+
+    @staticmethod
+    def add_alpha_args(parser, is_help):
+        if is_help:
+            alpha_list = ['A']  # we don't want to make help with all the full alpha list, as it's too long...
+        else:
+            alpha_list = AlphaList
+        for alpha in alpha_list:
+            try:
+                band = alpha + '_band'
+                alpha_arg = '-' + alpha
+                band_arg = '--' + band
+                parser.add_argument(alpha_arg, action="extend", nargs='*', type=str,
+                                    help="input gdal raster file, you can use any letter [a-z, A-Z]",
+                                    metavar='filename')
+                parser.add_argument(band_arg, action="extend", nargs='*', type=int,
+                                    help=f"number of raster band for file {alpha} (default 1)", metavar='n')
+            except argparse.ArgumentError:
+                pass
+
+    def get_parser(self, argv) -> GDALArgumentParser:
+        parser = self.parser
+        parser.add_argument("--calc", dest="calc", type=str, required=True, nargs='*', action="extend",
+                            help="calculation in numpy syntax using +-/* or any numpy array functions (i.e. log10()). "
+                                 "May appear multiple times to produce a multi-band file", metavar="expression")
+
+        is_help = '--help' in argv
+        self.add_alpha_args(parser, is_help)
+
+        parser.add_argument("--outfile", dest="outfile", required=True, metavar="filename",
+                            help="output file to generate or fill")
+        parser.add_argument("--NoDataValue", dest="NoDataValue", type=float, metavar="value",
+                            help="output nodata value (default datatype specific value)")
+        parser.add_argument("--hideNoData", dest="hideNoData", action="store_true",
+                            help="ignores the NoDataValues of the input rasters")
+        parser.add_argument("--type", dest="type", type=str, metavar="datatype", choices=GDALDataTypeNames,
+                            help="output datatype")
+        parser.add_argument("--format", dest="format", type=str, metavar="gdal_format",
+                            help="GDAL format for output file")
+        parser.add_argument(
+            "--creation-option", "--co", dest="creation_options", default=[], action="append", metavar="option",
+            help="Passes a creation option to the output format driver. Multiple "
+                 "options may be listed. See format specific documentation for legal "
+                 "creation options for each format.")
+        parser.add_argument("--allBands", dest="allBands", type=str, default="", metavar="[a-z, A-Z]",
+                            help="process all bands of given raster [a-z, A-Z]")
+        parser.add_argument("--overwrite", dest="overwrite", action="store_true",
+                            help="overwrite output file if it already exists")
+        parser.add_argument("--debug", dest="debug", action="store_true", help="print debugging information")
+        parser.add_argument("--quiet", dest="quiet", action="store_true", help="suppress progress messages")
+
+        parser.add_argument("--color-table", type=str, dest="color_table", help="color table file name")
+
+        group = parser.add_mutually_exclusive_group()
+        group.add_argument("--extent", dest="extent",
+                           choices=[e.name.lower() for e in Extent],
+                           help="how to treat mixed geotrasnforms")
+        group.add_argument("--projwin", dest="projwin", type=float, nargs=4, metavar=('ulx', 'uly', 'lrx', 'lry'),
+                           help="extent corners given in georeferenced coordinates")
+
+        parser.add_argument("--projectionCheck", dest="projectionCheck", action="store_true",
+                            help="check that all rasters share the same projection")
+
+        # parser.add_argument('--namespace', dest='user_namespace', action='extend', nargs='*', type=str)
+
+        return parser
+
+    def doit(self, **kwargs):
+        return Calc(**kwargs)
+
+    def augment_kwargs(self, kwargs) -> dict:
+        # create the input_files dict from the alpha arguments ('-a' and '--a_band')
+        input_files = {}
+        input_bands = {}
+        for alpha in AlphaList:
+            if alpha in kwargs:
+                alpha_val = kwargs[alpha]
+                del kwargs[alpha]
+                if alpha_val is not None:
+                    alpha_val = [s.strip('"') for s in alpha_val]
+                    input_files[alpha] = alpha_val if len(alpha_val) > 1 else alpha_val[0]
+            band_key = alpha + '_band'
+            if band_key in kwargs:
+                band_val = kwargs[band_key]
+                del kwargs[band_key]
+                if band_val is not None:
+                    input_bands[band_key] = band_val if len(band_val) > 1 else band_val[0]
+        kwargs = {**kwargs, **input_files, **input_bands}
+        # kwargs['input_files'] = input_files
+
+        return kwargs
+
+
+def main(argv):
+    return GDALCalc().main(argv)
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
