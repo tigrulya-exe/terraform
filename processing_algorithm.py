@@ -117,7 +117,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 self.tr('Topological correction algorithm'),
                 options=self.algorithms.keys(),
                 allowMultiple=False,
-                defaultValue=ScsTopoCorrectionAlgorithm.get_name(),
+                defaultValue=CosineTTopoCorrectionAlgorithm.get_name(),
                 usesStaticStrings=True
             )
         )
@@ -163,9 +163,6 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             context: QgsProcessingContext,
             feedback: QgsProcessingFeedback
     ) -> Dict[str, Any]:
-        plt.plot([1, 2, 3, 4])
-        plt.show()
-
         input_layer = self.parameterAsRasterLayer(parameters, 'INPUT', context)
         dem_layer = self.parameterAsRasterLayer(parameters, 'DEM', context)
         solar_zenith_angle = self.parameterAsDouble(parameters, 'SZA', context)

@@ -2,9 +2,13 @@ import textwrap
 from math import cos, radians
 from typing import Dict, Any
 
+import numpy as np
 import processing
 from qgis._core import QgsRasterLayer, QgsProcessingContext, QgsProcessingFeedback
 from qgis.core import (QgsProcessingException)
+
+from computation.my_simple_calc import SimpleRasterCalc
+
 
 class TopoCorrectionContext:
     def __init__(
@@ -36,6 +40,8 @@ class TopoCorrectionContext:
 
 
 class TopoCorrectionAlgorithm:
+    def __init__(self):
+        self.calc = SimpleRasterCalc()
 
     @staticmethod
     def get_name():
@@ -47,8 +53,19 @@ class TopoCorrectionAlgorithm:
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         pass
 
+    def np_safe_divide(self, top: str, bottom: str) -> str:
+        return self.np_safe_divide_check(top, bottom, bottom)
+
     def safe_divide(self, top: str, bottom: str) -> str:
         return self.safe_divide_check(top, bottom, bottom)
+
+    def np_safe_divide_check(self, top, bottom, null_check):
+        return np.divide(
+            top,
+            bottom,
+            out=np.zeros_like(bottom, dtype='float32'),
+            where=null_check != 0
+        )
 
     def safe_divide_check(self, top: str, bottom: str, null_check: str) -> str:
         return f"divide({top}, {bottom}, out=zeros_like({bottom}, dtype='float32'), where={null_check}!=0)"
