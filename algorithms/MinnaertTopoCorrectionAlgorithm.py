@@ -12,7 +12,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 'BAND_A': 1,
                 'INPUT_B': ctx.luminance_path,
                 'BAND_B': 1,
-                'FORMULA': f'log(cos(A) * B, zeros_like(A), where=(B!=0))',
+                'FORMULA': f'log(cos(A) * B, full_like(A, -10), where=(B!=0))',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
             feedback=ctx.qgis_feedback,

@@ -1,11 +1,6 @@
-import os
-import random
-import tempfile
-
-import numpy as np
+import processing
 
 from algorithms.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
-from computation.my_simple_calc import RasterInfo
 
 
 class CosineTTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
@@ -14,28 +9,17 @@ class CosineTTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         return "COSINE-T"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
-        def calculate(**kwargs):
-            input_band = kwargs["input"]
-            luminance = kwargs["luminance"]
-
-            return ctx.sza_cosine() * np.divide(
-                input_band,
-                luminance,
-                out=input_band.astype('float32'),
-                where=np.logical_and(luminance > 0, input_band > 5)
-             )
-
-        out_path = os.path.join(
-            tempfile.gettempdir(),
-            f'cosine_t_{band_idx}_{random.randint(1, 100)}'
+        result = processing.run(
+            'gdal:rastercalculator',
+            {
+                'INPUT_A': ctx.luminance_path,
+                'BAND_A': 1,
+                'INPUT_B': ctx.input_layer,
+                'BAND_B': band_idx + 1,
+                'FORMULA': f"{ctx.sza_cosine()} * {self.safe_divide('B', 'A')}",
+                'OUTPUT': 'TEMPORARY_OUTPUT',
+            },
+            feedback=ctx.qgis_feedback,
+            context=ctx.qgis_context
         )
-
-        self.calc.calculate(
-            func=calculate,
-            output_path=out_path,
-            raster_infos=[
-                RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance_path, 1),
-            ]
-        )
-        return out_path
+        return result['OUTPUT']

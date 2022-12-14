@@ -13,7 +13,8 @@ from qgis.core import (QgsProcessingAlgorithm,
 
 from algorithms.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from algorithms.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
-from algorithms.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
+from algorithms.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm as CosT
+from topocorrection.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm as MyCosT
 from algorithms.MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
 from algorithms.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
 from algorithms.PBMTopoCorrectionAlgorithm import PBMTopoCorrectionAlgorithm
@@ -36,7 +37,8 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         # todo dynamically scan directory
         self.algorithms = {
             ScsTopoCorrectionAlgorithm.get_name(): ScsTopoCorrectionAlgorithm(),
-            CosineTTopoCorrectionAlgorithm.get_name(): CosineTTopoCorrectionAlgorithm(),
+            CosT.get_name(): CosT(),
+            MyCosT.get_name(): MyCosT(),
             CosineCTopoCorrectionAlgorithm.get_name(): CosineCTopoCorrectionAlgorithm(),
             MinnaertTopoCorrectionAlgorithm.get_name(): MinnaertTopoCorrectionAlgorithm(),
             CTopoCorrectionAlgorithm.get_name(): CTopoCorrectionAlgorithm(),
@@ -117,7 +119,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 self.tr('Topological correction algorithm'),
                 options=self.algorithms.keys(),
                 allowMultiple=False,
-                defaultValue=CosineTTopoCorrectionAlgorithm.get_name(),
+                defaultValue=CosT.get_name(),
                 usesStaticStrings=True
             )
         )
