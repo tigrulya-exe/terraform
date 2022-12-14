@@ -7,7 +7,7 @@ from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
 class PBMTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "PBM"
+        return "[old] PBM"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         k = self.calculate_k(ctx, band_idx)

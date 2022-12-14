@@ -78,16 +78,15 @@ def compute_band_means(input_path: str) -> List[float]:
         raise IOError(f"Wrong path: {input_path}")
 
     band_means = []
-    for iBand in range(1, ds.RasterCount + 1):
-        band = ds.GetRasterBand(iBand)
+    for iBand in range(0, ds.RasterCount):
+        band = ds.GetRasterBand(iBand + 1)
 
-        line_means = []
+        pixel_sum = 0
         for i in range(band.YSize - 1, -1, -1):
             scanline = read_hline(band, i)
-            line_means.append(np.mean(scanline))
+            pixel_sum += np.sum(scanline)
 
-        band_mean = statistics.mean(line_means)
-        band_means.append(band_mean)
+        band_means.append(pixel_sum / (band.XSize * band.YSize))
 
     return band_means
 

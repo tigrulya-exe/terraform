@@ -32,7 +32,6 @@ class SimpleRasterCalc:
                 datasets_by_path[info.path] = ds
 
         format = GetOutputDriverFor(output_path)
-        extent = Extent.IGNORE
 
         ################################################################
         # fetch details of input layers

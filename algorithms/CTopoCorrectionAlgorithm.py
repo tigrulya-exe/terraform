@@ -7,7 +7,7 @@ from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
 class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "C-correction"
+        return "[old] C-correction"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         c = self.calculate_c(ctx, band_idx)
@@ -29,4 +29,4 @@ class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
 
     def calculate_c(self, ctx: TopoCorrectionContext, band_idx: int) -> float:
         intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
-        return slope / intercept
+        return intercept / slope

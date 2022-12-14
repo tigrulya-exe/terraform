@@ -1,7 +1,6 @@
 from math import radians
 from typing import Dict, Any
 
-import matplotlib.pyplot as plt
 import processing
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis._core import QgsProcessingContext, QgsProcessingFeedback, \
@@ -11,20 +10,9 @@ from qgis.core import (QgsProcessingAlgorithm,
                        QgsProcessingParameterRasterLayer,
                        QgsProcessingParameterRasterDestination)
 
-from algorithms.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
-from algorithms.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
-from algorithms.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm as CosT
-from topocorrection.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm as MyCosT
-from algorithms.MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
-from algorithms.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
-from algorithms.PBMTopoCorrectionAlgorithm import PBMTopoCorrectionAlgorithm
-from algorithms.ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
-from algorithms.ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
-from algorithms.TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
 from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
-from algorithms.VECATopoCorrectionAlgorithm import VECATopoCorrectionAlgorithm
 from computation.qgis_utils import add_layer_to_project
-from parallel_algorithms.CosineCTopoCorrectionAlgorithm import CosineTParallelTopoCorrectionAlgorithm
+from topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 
 
 # from processing.core.ProcessingConfig import ProcessingConfig
@@ -35,20 +23,63 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
     def __init__(self):
         super().__init__()
         # todo dynamically scan directory
-        self.algorithms = {
-            ScsTopoCorrectionAlgorithm.get_name(): ScsTopoCorrectionAlgorithm(),
-            CosT.get_name(): CosT(),
-            MyCosT.get_name(): MyCosT(),
-            CosineCTopoCorrectionAlgorithm.get_name(): CosineCTopoCorrectionAlgorithm(),
-            MinnaertTopoCorrectionAlgorithm.get_name(): MinnaertTopoCorrectionAlgorithm(),
-            CTopoCorrectionAlgorithm.get_name(): CTopoCorrectionAlgorithm(),
-            MinnaertScsTopoCorrectionAlgorithm.get_name(): MinnaertTopoCorrectionAlgorithm(),
-            ScsCTopoCorrectionAlgorithm.get_name(): ScsCTopoCorrectionAlgorithm(),
-            PBMTopoCorrectionAlgorithm.get_name(): PBMTopoCorrectionAlgorithm(),
-            VECATopoCorrectionAlgorithm.get_name(): VECATopoCorrectionAlgorithm(),
-            TeilletRegressionTopoCorrectionAlgorithm.get_name(): TeilletRegressionTopoCorrectionAlgorithm(),
-            CosineTParallelTopoCorrectionAlgorithm.get_name(): CosineTParallelTopoCorrectionAlgorithm()
-        }
+        self.algorithms = dict()
+        self.add_old_algs(self.algorithms)
+        self.add_new_algs(self.algorithms)
+
+    def add_old_algs(self, dict):
+        from algorithms.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
+        from algorithms.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
+        from algorithms.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
+        from algorithms.MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
+        from algorithms.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
+        from algorithms.PBMTopoCorrectionAlgorithm import PBMTopoCorrectionAlgorithm
+        from algorithms.ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
+        from algorithms.ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
+        from algorithms.TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
+        from algorithms.VECATopoCorrectionAlgorithm import VECATopoCorrectionAlgorithm
+        self.add_algs_to_dict(dict, [
+            CosineTTopoCorrectionAlgorithm,
+            CosineCTopoCorrectionAlgorithm,
+            CTopoCorrectionAlgorithm,
+            ScsTopoCorrectionAlgorithm,
+            ScsCTopoCorrectionAlgorithm,
+            MinnaertTopoCorrectionAlgorithm,
+            MinnaertScsTopoCorrectionAlgorithm,
+            PBMTopoCorrectionAlgorithm,
+            VECATopoCorrectionAlgorithm,
+            TeilletRegressionTopoCorrectionAlgorithm
+        ])
+
+    def add_new_algs(self, dict):
+        from topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
+        from topocorrection.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
+        from topocorrection.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
+        from topocorrection.MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
+        from topocorrection.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
+        from topocorrection.PbmTopoCorrectionAlgorithm import PbmTopoCorrectionAlgorithm
+        from topocorrection.ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
+        from topocorrection.ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
+        from topocorrection.TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
+        from topocorrection.VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
+        from topocorrection.PbcTopoCorrectionAlgorithm import PbcTopoCorrectionAlgorithm
+        self.add_algs_to_dict(dict, [
+            CosineTTopoCorrectionAlgorithm,
+            CosineCTopoCorrectionAlgorithm,
+            CTopoCorrectionAlgorithm,
+            ScsTopoCorrectionAlgorithm,
+            ScsCTopoCorrectionAlgorithm,
+            MinnaertTopoCorrectionAlgorithm,
+            MinnaertScsTopoCorrectionAlgorithm,
+            PbmTopoCorrectionAlgorithm,
+            VecaTopoCorrectionAlgorithm,
+            TeilletRegressionTopoCorrectionAlgorithm,
+            PbcTopoCorrectionAlgorithm
+        ])
+
+    def add_algs_to_dict(self, alg_dict, algs):
+        for alg in algs:
+            alg_dict[alg.get_name()] = alg()
 
     def tr(self, string):
         """
@@ -119,7 +150,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 self.tr('Topological correction algorithm'),
                 options=self.algorithms.keys(),
                 allowMultiple=False,
-                defaultValue=CosT.get_name(),
+                defaultValue=CTopoCorrectionAlgorithm.get_name(),
                 usesStaticStrings=True
             )
         )

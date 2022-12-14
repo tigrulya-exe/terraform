@@ -7,7 +7,7 @@ from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
 class MinnaertScsTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "Minnaert-SCS"
+        return "[old] Minnaert-SCS"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         k = self.calculate_k(ctx, band_idx)

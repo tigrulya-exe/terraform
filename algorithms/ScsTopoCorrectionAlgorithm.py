@@ -6,7 +6,7 @@ from algorithms.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorr
 class ScsTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "SCS"
+        return "[old] SCS"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         result = processing.run(

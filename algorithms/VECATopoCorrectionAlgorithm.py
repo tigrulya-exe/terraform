@@ -7,7 +7,7 @@ from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
 class VECATopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "VECA"
+        return "[old] VECA"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)

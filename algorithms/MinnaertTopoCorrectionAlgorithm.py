@@ -23,7 +23,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
 
     @staticmethod
     def get_name():
-        return "Minnaert"
+        return "[old] Minnaert"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         k = self.calculate_k(ctx, band_idx)

@@ -6,7 +6,7 @@ from algorithms.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorr
 class CosineTTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "COSINE-T"
+        return "[old] COSINE-T"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         result = processing.run(

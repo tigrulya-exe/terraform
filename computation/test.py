@@ -1,6 +1,5 @@
 from typing import List
 
-from numpy.polynomial import Polynomial
 from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly
 import numpy as np

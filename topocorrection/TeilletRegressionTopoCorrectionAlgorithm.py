@@ -1,30 +1,25 @@
-import numpy as np
 from computation import gdal_utils
 from computation.my_simple_calc import RasterInfo
+from topocorrection.SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
+from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
 
-from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
 
-
-class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
+class TeilletRegressionTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "COSINE-C"
+        return "Teillet regression"
 
     def init(self, ctx: TopoCorrectionContext):
-        # todo add validation
-        self.luminance_mean = gdal_utils.compute_band_means(ctx.luminance_path)[0]
+        self.raster_means = gdal_utils.compute_band_means(ctx.input_layer.source())
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
+        intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
+
         def calculate(**kwargs):
             input_band = kwargs["input"]
             luminance = kwargs["luminance"]
 
-            return input_band * (1 + np.divide(
-                self.luminance_mean - luminance,
-                self.luminance_mean,
-                out=input_band.astype('float32'),
-                where=input_band > 5
-            ))
+            return input_band - slope * luminance - intercept + self.raster_means[band_idx]
 
         return self.raster_calculate(
             calc_func=calculate,

@@ -7,7 +7,7 @@ from algorithms.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorr
 class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "COSINE-C"
+        return "[old] COSINE-C"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         # todo add validation

@@ -7,7 +7,7 @@ from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, Topo
 class ScsTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "[direct_calc] SCS"
+        return "SCS"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         def calculate(**kwargs):
@@ -15,14 +15,14 @@ class ScsTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             luminance = kwargs["luminance"]
             slope = kwargs["slope"]
 
-            return np.divide(
-                slope * ctx.sza_cosine(),
+            return input_band * np.divide(
+                np.cos(slope) * ctx.sza_cosine(),
                 luminance,
                 out=input_band.astype('float32'),
-                where=luminance > 0
+                where=np.logical_and(luminance > 0, input_band > 5)
             )
 
-        return self.calculate(
+        return self.raster_calculate(
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),

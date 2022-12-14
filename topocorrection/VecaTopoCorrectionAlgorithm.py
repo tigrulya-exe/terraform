@@ -1,25 +1,29 @@
 import numpy as np
 
+from computation import gdal_utils
+from computation.my_simple_calc import RasterInfo
 from topocorrection.SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
 from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
-from computation.my_simple_calc import RasterInfo
 
 
-class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
+class VecaTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "C-correction"
+        return "VECA"
+
+    def init(self, ctx: TopoCorrectionContext):
+        self.raster_means = gdal_utils.compute_band_means(ctx.input_layer.source())
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
-        c = self.calculate_c(ctx, band_idx)
+        intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
 
         def calculate(**kwargs):
             input_band = kwargs["input"]
             luminance = kwargs["luminance"]
 
-            denominator = luminance + c
+            denominator = slope * luminance + intercept
             return input_band * np.divide(
-                ctx.sza_cosine() + c,
+                self.raster_means[band_idx],
                 denominator,
                 out=input_band.astype('float32'),
                 where=np.logical_and(denominator > 0, input_band > 5)
@@ -32,7 +36,3 @@ class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
                 RasterInfo("luminance", ctx.luminance_path, 1),
             ]
         )
-
-    def calculate_c(self, ctx: TopoCorrectionContext, band_idx: int) -> float:
-        intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
-        return intercept / slope

@@ -7,7 +7,7 @@ from algorithms.TopoCorrectionAlgorithm import TopoCorrectionContext
 class TeilletRegressionTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
     @staticmethod
     def get_name():
-        return "Teillet regression"
+        return "[old] Teillet regression"
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)

@@ -1,7 +1,6 @@
 import os
 import random
 import tempfile
-import textwrap
 from math import cos, radians
 from typing import Dict, Any
 
@@ -56,32 +55,6 @@ class TopoCorrectionAlgorithm:
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
         pass
 
-    def safe_divide(self, top: str, bottom: str) -> str:
-        return self.safe_divide_check(top, bottom, bottom)
-
-    def safe_divide_check(self, top, bottom, null_check):
-        return np.divide(
-            top,
-            bottom,
-            out=np.zeros_like(bottom, dtype='float32'),
-            where=null_check != 0
-        )
-
-    def output_file_path(self, postfix=''):
-        return os.path.join(
-            tempfile.gettempdir(),
-            f'{self.get_name()}_{random.randint(1, 100000)}_{postfix}'
-        )
-
-    def calculate(self, calc_func, raster_infos: list[RasterInfo]):
-        out_path = self.output_file_path()
-        self.calc.calculate(
-            func=calc_func,
-            output_path=out_path,
-            raster_infos=raster_infos
-        )
-        return out_path
-
     def process(self, ctx: TopoCorrectionContext) -> Dict[str, Any]:
         self.init(ctx)
         result_bands = []
@@ -113,3 +86,18 @@ class TopoCorrectionAlgorithm:
             feedback=ctx.qgis_feedback,
             context=ctx.qgis_context
         )
+
+    def output_file_path(self, postfix=''):
+        return os.path.join(
+            tempfile.gettempdir(),
+            f'{self.get_name()}_{random.randint(1, 100000)}_{postfix}'
+        )
+
+    def raster_calculate(self, calc_func, raster_infos: list[RasterInfo]):
+        out_path = self.output_file_path()
+        self.calc.calculate(
+            func=calc_func,
+            output_path=out_path,
+            raster_infos=raster_infos
+        )
+        return out_path
