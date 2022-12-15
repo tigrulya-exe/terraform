@@ -1,10 +1,11 @@
+from enum import Enum, auto
 from math import radians
 from typing import Dict, Any
 
 import processing
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis._core import QgsProcessingContext, QgsProcessingFeedback, \
-    QgsProcessingParameterBoolean, QgsProcessingParameterEnum
+    QgsProcessingParameterEnum
 from qgis.core import (QgsProcessingAlgorithm,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterRasterLayer,
@@ -20,38 +21,17 @@ from topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 # print(ProcessingConfig.getSetting('SCRIPTS_FOLDERS'))
 # print(ScriptUtils.defaultScriptsFolder())
 class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
+    class AuxiliaryLayers(Enum):
+        ASPECT = 0
+        SLOPE = 1
+        LUMINANCE = 2
+
     def __init__(self):
         super().__init__()
         # todo dynamically scan directory
-        self.algorithms = dict()
-        self.add_old_algs(self.algorithms)
-        self.add_new_algs(self.algorithms)
+        self.algorithms = self.find_algorithms()
 
-    def add_old_algs(self, dict):
-        from algorithms.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
-        from algorithms.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
-        from algorithms.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
-        from algorithms.MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
-        from algorithms.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
-        from algorithms.PBMTopoCorrectionAlgorithm import PBMTopoCorrectionAlgorithm
-        from algorithms.ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
-        from algorithms.ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
-        from algorithms.TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
-        from algorithms.VECATopoCorrectionAlgorithm import VECATopoCorrectionAlgorithm
-        self.add_algs_to_dict(dict, [
-            CosineTTopoCorrectionAlgorithm,
-            CosineCTopoCorrectionAlgorithm,
-            CTopoCorrectionAlgorithm,
-            ScsTopoCorrectionAlgorithm,
-            ScsCTopoCorrectionAlgorithm,
-            MinnaertTopoCorrectionAlgorithm,
-            MinnaertScsTopoCorrectionAlgorithm,
-            PBMTopoCorrectionAlgorithm,
-            VECATopoCorrectionAlgorithm,
-            TeilletRegressionTopoCorrectionAlgorithm
-        ])
-
-    def add_new_algs(self, dict):
+    def find_algorithms(self):
         from topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
         from topocorrection.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
         from topocorrection.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
@@ -63,7 +43,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         from topocorrection.TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
         from topocorrection.VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
         from topocorrection.PbcTopoCorrectionAlgorithm import PbcTopoCorrectionAlgorithm
-        self.add_algs_to_dict(dict, [
+        algorithms = [
             CosineTTopoCorrectionAlgorithm,
             CosineCTopoCorrectionAlgorithm,
             CTopoCorrectionAlgorithm,
@@ -75,11 +55,11 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             VecaTopoCorrectionAlgorithm,
             TeilletRegressionTopoCorrectionAlgorithm,
             PbcTopoCorrectionAlgorithm
-        ])
-
-    def add_algs_to_dict(self, alg_dict, algs):
-        for alg in algs:
-            alg_dict[alg.get_name()] = alg()
+        ]
+        algorithms_dict = dict()
+        for algorithm in algorithms:
+            algorithms_dict[algorithm.get_name()] = algorithm()
+        return algorithms_dict
 
     def tr(self, string):
         """
@@ -131,16 +111,14 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 'INPUT',
-                self.tr('Input raster layer'),
-                # defaultValue=QgsProject.instance().mapLayersByName("CUT_INPUT")[0]
+                self.tr('Input raster layer')
             )
         )
 
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 'DEM',
-                self.tr('Input DEM layer'),
-                # defaultValue=QgsProject.instance().mapLayersByName("CUT_DEM")[0]
+                self.tr('Input DEM layer')
             )
         )
 
@@ -152,6 +130,16 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
                 allowMultiple=False,
                 defaultValue=CTopoCorrectionAlgorithm.get_name(),
                 usesStaticStrings=True
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                'SHOW_AUXILIARY_LAYERS',
+                self.tr('Auxiliary layers to show'),
+                options=[e.name for e in self.AuxiliaryLayers],
+                allowMultiple=True,
+                optional=True
             )
         )
 
@@ -174,16 +162,6 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         )
 
         self.addParameter(
-            QgsProcessingParameterBoolean(
-                'SHOW_TMP_LAYERS',
-                self.tr('Show temporary layers (aspect, slope, etc.)'),
-                defaultValue=False,
-            )
-        )
-
-        # 'OUTPUT' is the recommended name for the main output
-        # parameter.
-        self.addParameter(
             QgsProcessingParameterRasterDestination(
                 'OUTPUT',
                 self.tr('Raster output')
@@ -201,8 +179,8 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         solar_zenith_angle = self.parameterAsDouble(parameters, 'SZA', context)
         solar_azimuth = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context)
 
-        # todo
-        self.show_tmp_layers = self.parameterAsBoolean(parameters, 'SHOW_TMP_LAYERS', context)
+        self.show_tmp_layers = self.parameterAsEnums(parameters, 'SHOW_AUXILIARY_LAYERS', context)
+        feedback.pushInfo(f"ssssss {self.show_tmp_layers}")
 
         slope_rad_path = self.build_slope_rad_layer(feedback, context, dem_layer)
         if feedback.isCanceled():
@@ -270,7 +248,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         )
 
         result_path = results['OUTPUT']
-        self._add_layer_to_project(context, result_path, "Slope_gen")
+        self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.SLOPE, "Slope_gen")
 
         return result_path
 
@@ -292,7 +270,7 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
         )
 
         result_path = results['OUTPUT']
-        self._add_layer_to_project(context, result_path, "Aspect_gen")
+        self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.ASPECT, "Aspect_gen")
 
         return result_path
 
@@ -317,9 +295,9 @@ class ExampleProcessingAlgorithm(QgsProcessingAlgorithm):
             is_child_algorithm=True
         )
         result_path = results['OUTPUT']
-        self._add_layer_to_project(context, result_path, "Luminance_gen")
+        self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.LUMINANCE, "Luminance_gen")
         return result_path
 
-    def _add_layer_to_project(self, context, layer_path, name="out"):
-        if self.show_tmp_layers:
+    def _add_layer_to_project(self, context, layer_path, show_label: AuxiliaryLayers, name="out"):
+        if show_label.value in self.show_tmp_layers:
             add_layer_to_project(context, layer_path, name)
