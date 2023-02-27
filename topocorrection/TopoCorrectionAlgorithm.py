@@ -4,7 +4,6 @@ import tempfile
 from math import cos, radians
 from typing import Dict, Any
 
-import numpy as np
 import processing
 from qgis._core import QgsRasterLayer, QgsProcessingContext, QgsProcessingFeedback
 from qgis.core import (QgsProcessingException)
