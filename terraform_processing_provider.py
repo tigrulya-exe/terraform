@@ -32,8 +32,8 @@ __revision__ = '$Format:%H$'
 
 from qgis.core import QgsProcessingProvider
 
-from processing.rose_diagrams_algorithm import RoseDiagramsEvaluationAlgorithm
-from processing.topocorrection_algorithm import TerraformTopoCorrectionAlgorithm
+from processing_alg.topocorrection_algorithm import TerraformTopoCorrectionAlgorithm
+from processing_alg.rose_diagrams_algorithm import RoseDiagramsEvaluationAlgorithm
 
 
 class TerraformProcessingProvider(QgsProcessingProvider):
@@ -64,7 +64,7 @@ class TerraformProcessingProvider(QgsProcessingProvider):
         string should be a unique, short, character only string, eg "qgis" or
         "gdal". This string should not be localised.
         """
-        return 'Terraform processing provider'
+        return 'Terraform'
 
     def name(self):
         """

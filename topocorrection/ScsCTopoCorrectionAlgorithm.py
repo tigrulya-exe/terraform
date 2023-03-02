@@ -1,6 +1,6 @@
 import numpy as np
 
-from computation.my_simple_calc import RasterInfo
+from computation.raster_calc import RasterInfo
 from topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
 

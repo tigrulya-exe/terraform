@@ -1,6 +1,6 @@
 import numpy as np
 from computation import gdal_utils
-from computation.my_simple_calc import RasterInfo
+from computation.raster_calc import RasterInfo
 
 from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
 

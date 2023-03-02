@@ -6,7 +6,7 @@ import numpy as np
 from osgeo_utils.auxiliary.util import open_ds
 
 from computation.gdal_utils import read_hline
-from computation.my_simple_calc import SimpleRasterCalc, RasterInfo
+from computation.raster_calc import SimpleRasterCalc, RasterInfo
 
 
 class OutOfCoreRegressor:
@@ -125,4 +125,4 @@ def test():
     res_ds.GetRasterBand(1).GetStatistics(1, 1)
 
 
-test()
+# test()

@@ -2,7 +2,6 @@ import os
 
 import numpy as np
 from osgeo import gdal
-from osgeo_utils.auxiliary.extent_util import Extent
 from osgeo_utils.auxiliary.util import open_ds, GetOutputDriverFor
 from osgeo_utils.gdal_calc import DefaultNDVLookup
 
@@ -23,7 +22,7 @@ class SimpleRasterCalc:
             hideNoData: bool = False,
             overwrite_out: bool = False,
             debug: bool = True,
-            NoDataValue = None):
+            NoDataValue=None):
         datasets_by_path = {}
         for info in raster_infos:
             ds = datasets_by_path.get(info.path)
@@ -88,7 +87,6 @@ class SimpleRasterCalc:
             GeoTransformCheck = myFileGeoTransform
             print(f"file {alpha}: {filename}, dimensions: "
                   f"{DimensionsCheck[0]}, {DimensionsCheck[1]}, type: {myDataType[-1]}")
-
 
         allBandsCount = 1
 
@@ -243,7 +241,6 @@ class SimpleRasterCalc:
                             myNDVs = np.zeros(buf_size)
                             myNDVs.shape = (y_block_size, x_block_size)
                         myNDVs = 1 * np.logical_or(myNDVs == 1, block == myNDV[i])
-
 
                     calc_func_kw_args[raster_info.uid] = block
 

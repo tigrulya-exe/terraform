@@ -45,6 +45,7 @@ from qgis.core import (QgsProcessingAlgorithm,
                        QgsProcessingParameterRasterDestination)
 
 from computation.qgis_utils import add_layer_to_project
+from processing_alg.terraform_processing_algorithm import TerraformProcessingAlgorithm
 from topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
 
@@ -53,7 +54,7 @@ from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
 # from processing.script import ScriptUtils
 # print(ProcessingConfig.getSetting('SCRIPTS_FOLDERS'))
 # print(ScriptUtils.defaultScriptsFolder())
-class TerraformTopoCorrectionAlgorithm(QgsProcessingAlgorithm):
+class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
     class AuxiliaryLayers(Enum):
         ASPECT = 0
         SLOPE = 1
@@ -115,19 +116,6 @@ class TerraformTopoCorrectionAlgorithm(QgsProcessingAlgorithm):
         Returns the translated algorithm name.
         """
         return self.tr('Terraform topographic correction')
-
-    def group(self):
-        """
-        Returns the name of the group this algorithm belongs to.
-        """
-        return self.tr('NSU')
-
-    def groupId(self):
-        """
-        Returns the unique ID of the group this algorithm belongs
-        to.
-        """
-        return 'nsu'
 
     def shortHelpString(self):
         """
@@ -215,7 +203,7 @@ class TerraformTopoCorrectionAlgorithm(QgsProcessingAlgorithm):
         self.show_tmp_layers = self.parameterAsEnums(parameters, 'SHOW_AUXILIARY_LAYERS', context)
         feedback.pushInfo(f"ssssss {self.show_tmp_layers}")
 
-        slope_rad_path = self.build_slope_rad_layer(feedback, context, dem_layer)
+        slope_rad_path = self.build_slope_layer(feedback, context, dem_layer)
         if feedback.isCanceled():
             return {}
 
@@ -246,65 +234,14 @@ class TerraformTopoCorrectionAlgorithm(QgsProcessingAlgorithm):
         # add validation
         return self.algorithms[tc_algorithm_name].process(topo_context)
 
-    def build_slope_rad_layer(self, feedback, context, dem_layer) -> (str, str):
-        slope_path = self.build_slope_layer(feedback, context, dem_layer)
-
-        slope_cos_result = processing.run(
-            'gdal:rastercalculator',
-            {
-                'INPUT_A': slope_path,
-                'BAND_A': 1,
-                'FORMULA': f'deg2rad(A)',
-                'OUTPUT': 'TEMPORARY_OUTPUT',
-            },
-            feedback=feedback,
-            context=context
-        )
-        return slope_cos_result['OUTPUT']
-
-    def build_slope_layer(self, feedback, context, dem_layer) -> str:
-        results = processing.run(
-            "gdal:slope",
-            {
-                'INPUT': dem_layer,
-                'BAND': 1,
-                # magic number 111120 lol
-                'SCALE': 1,
-                'AS_PERCENT': False,
-                'COMPUTE_EDGES': True,
-                'ZEVENBERGEN': True,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-            },
-            feedback=feedback,
-            context=context,
-            is_child_algorithm=True
-        )
-
-        result_path = results['OUTPUT']
+    def build_slope_layer(self, feedback, context, dem_layer, in_radians=True) -> str:
+        result_path = super().build_slope_layer(feedback, context, dem_layer, in_radians)
         self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.SLOPE, "Slope_gen")
-
         return result_path
 
-    def build_aspect_layer(self, feedback, context, dem_layer) -> str:
-        results = processing.run(
-            "gdal:aspect",
-            {
-                'INPUT': dem_layer,
-                'BAND': 1,
-                'TRIG_ANGLE': False,
-                'ZERO_FLAT': True,
-                'COMPUTE_EDGES': True,
-                'ZEVENBERGEN': True,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-            },
-            feedback=feedback,
-            context=context,
-            is_child_algorithm=True
-        )
-
-        result_path = results['OUTPUT']
+    def build_aspect_layer(self, feedback, context, dem_layer, in_radians=False) -> str:
+        result_path = super().build_aspect_layer(feedback, context, dem_layer, in_radians)
         self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.ASPECT, "Aspect_gen")
-
         return result_path
 
     def compute_luminance(self, feedback, context, slope_rad_path: str, aspect_path: str, sza: float,

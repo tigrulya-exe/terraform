@@ -8,7 +8,7 @@ import processing
 from qgis._core import QgsRasterLayer, QgsProcessingContext, QgsProcessingFeedback
 from qgis.core import (QgsProcessingException)
 
-from computation.my_simple_calc import SimpleRasterCalc, RasterInfo
+from computation.raster_calc import SimpleRasterCalc, RasterInfo
 
 
 class TopoCorrectionContext:

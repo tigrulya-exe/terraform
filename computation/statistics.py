@@ -27,7 +27,9 @@ def plot_rose_diagrams(
         aspect_groups_count=36,
         aspect_max_deg=360,
         subplots_in_row=4,
-        output_file_path=None):
+        # todo replace with enum
+        output_file_path=None,
+        show=True):
     slope_groups_bounds = divide_to_groups(slope_groups_count, upper_bound=slope_max_deg)
     aspect_groups_bounds = divide_to_groups(aspect_groups_count, upper_bound=aspect_max_deg)
 
@@ -60,11 +62,11 @@ def plot_rose_diagrams(
         ax.legend(loc='lower right', title='Slope')
         ax.tick_params(axis='y', rotation=45)
 
+    plt.tight_layout()
     if output_file_path is not None:
         plt.savefig(output_file_path)
-
-    plt.tight_layout()
-    plt.show()
+    if show:
+        plt.show()
 
 
 def group_by_range(arr, groups_count, upper_bound, lower_bound=0):
@@ -91,6 +93,7 @@ def calculate_rose_groups(
 def get_flat_band(ds, band_idx):
     return ds.GetRasterBand(band_idx).ReadAsArray().ravel()
 
+
 def build_polar_diagrams(
         img_path,
         slope_path,
@@ -100,7 +103,7 @@ def build_polar_diagrams(
         aspect_groups_count=36,
         aspect_max_deg=360,
         output_file_path=None,
-        plot=True):
+        show_plot=True):
     slope_bytes = gdal_utils.read_band_as_array(slope_path).ravel()
     aspect_bytes = gdal_utils.read_band_as_array(aspect_path).ravel()
 
@@ -116,24 +119,23 @@ def build_polar_diagrams(
         group_means = npg.aggregate(groups_idxs, band_bytes, func='mean', fill_value=0)
         groups.append(group_means)
 
-    if plot:
-        plot_rose_diagrams(groups,
-                           slope_groups_count=slope_groups_count,
-                           slope_max_deg=slope_max_deg,
-                           aspect_groups_count=aspect_groups_count,
-                           aspect_max_deg=aspect_max_deg,
-                           output_file_path=output_file_path)
+    plot_rose_diagrams(groups,
+                       slope_groups_count=slope_groups_count,
+                       slope_max_deg=slope_max_deg,
+                       aspect_groups_count=aspect_groups_count,
+                       aspect_max_deg=aspect_max_deg,
+                       output_file_path=output_file_path,
+                       show=show_plot)
     return groups
-
 
 # img_bytes = open_tiff("..\\test_files\CORRECTED_3.tif")
 # slope_bytes = open_tiff("..\\test_files\SLOPE_3.tif")
 # aspect_bytes = open_tiff("..\\test_files\ASPECT_3.tif")
 
-build_polar_diagrams(
-    img_path="..\\test_files\CUT_INPUT_3.tif",
-    slope_path="../test/resources/SLOPE_3.tif",
-    aspect_path="../test/resources/ASPECT_3.tif",
-    output_file_path="original.png",
-    slope_groups_count=6
-)
+# build_polar_diagrams(
+#     img_path="..\\test_files\CUT_INPUT_3.tif",
+#     slope_path="../test/resources/SLOPE_3.tif",
+#     aspect_path="../test/resources/ASPECT_3.tif",
+#     output_file_path="original.png",
+#     slope_groups_count=6
+# )

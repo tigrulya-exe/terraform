@@ -5,7 +5,7 @@ import numpy as np
 from computation import gdal_utils
 from topocorrection.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
 from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
-from computation.my_simple_calc import RasterInfo
+from computation.raster_calc import RasterInfo
 
 
 class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):

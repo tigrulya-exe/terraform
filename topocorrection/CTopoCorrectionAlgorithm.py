@@ -2,7 +2,7 @@ import numpy as np
 
 from topocorrection.SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
 from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
-from computation.my_simple_calc import RasterInfo
+from computation.raster_calc import RasterInfo
 
 
 class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
