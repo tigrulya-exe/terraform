@@ -31,10 +31,12 @@ __copyright__ = '(C) 2023 by Tigran Manasyan'
 __revision__ = '$Format:%H$'
 
 from qgis.core import QgsProcessingProvider
-from .terraform_algorithm import TerraformTopoCorrectionAlgorithm
+
+from processing.rose_diagrams_algorithm import RoseDiagramsEvaluationAlgorithm
+from processing.topocorrection_algorithm import TerraformTopoCorrectionAlgorithm
 
 
-class TerraformTopoCorrectionProvider(QgsProcessingProvider):
+class TerraformProcessingProvider(QgsProcessingProvider):
 
     def __init__(self):
         """
@@ -54,8 +56,7 @@ class TerraformTopoCorrectionProvider(QgsProcessingProvider):
         Loads all algorithms belonging to this provider.
         """
         self.addAlgorithm(TerraformTopoCorrectionAlgorithm())
-        # add additional algorithms here
-        # self.addAlgorithm(MyOtherAlgorithm())
+        self.addAlgorithm(RoseDiagramsEvaluationAlgorithm())
 
     def id(self):
         """

@@ -1,4 +1,3 @@
-import statistics
 from typing import List
 
 from osgeo import gdal
@@ -37,8 +36,16 @@ class OutOfCoreRegressor:
         b = np.array([self.xy_sum, self.y_sum], dtype='float')
         return np.linalg.solve(a, b)
 
+def open_img(path, access=GA_ReadOnly):
+    ds = gdal.Open(path, access)
+
+    if ds is None:
+        raise IOError(f"Wrong path: {path}")
+
+    return ds
+
 def read_band_as_array(path: str, band_idx: int = 1):
-    ds = gdal.Open(path, GA_ReadOnly)
+    ds = open_img(path)
     return ds.GetRasterBand(band_idx).ReadAsArray()
 
 def raster_linear_regression(x_path: str, y_path: str, x_band:int = 1, y_band: int = 1):
@@ -49,8 +56,8 @@ def raster_linear_regression(x_path: str, y_path: str, x_band:int = 1, y_band: i
     return res
 
 def raster_partial_linear_regression(x_path: str, y_path: str) -> List[List[float]]:
-    x_ds = gdal.Open(x_path, GA_ReadOnly)
-    y_ds = gdal.Open(y_path, GA_ReadOnly)
+    x_ds = open_img(x_path)
+    y_ds = open_img(y_path)
 
     band_weights = []
     # todo generalise it
@@ -72,7 +79,7 @@ def raster_partial_linear_regression(x_path: str, y_path: str) -> List[List[floa
 
 
 def compute_band_means(input_path: str) -> List[float]:
-    ds = gdal.Open(input_path, GA_ReadOnly)
+    ds = open_img(input_path)
 
     if ds is None:
         raise IOError(f"Wrong path: {input_path}")

@@ -16,7 +16,7 @@ from computation.qgis_utils import add_layer_to_project
 from topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
 
-class PlotTestAlgorithm(QgsProcessingAlgorithm):
+class RoseDiagramsEvaluationAlgorithm(QgsProcessingAlgorithm):
     def __init__(self):
         super().__init__()
 
@@ -28,7 +28,7 @@ class PlotTestAlgorithm(QgsProcessingAlgorithm):
 
     def createInstance(self):
         # Must return a new copy of your algorithm.
-        return PlotTestAlgorithm()
+        return RoseDiagramsEvaluationAlgorithm()
 
     def name(self):
         """
