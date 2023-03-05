@@ -36,8 +36,7 @@ from typing import Dict, Any
 
 import processing
 from qgis.PyQt.QtCore import QCoreApplication
-from qgis.core import (QgsProcessingAlgorithm,
-                       QgsProcessingContext,
+from qgis.core import (QgsProcessingContext,
                        QgsProcessingFeedback,
                        QgsProcessingParameterEnum,
                        QgsProcessingParameterNumber,
@@ -45,9 +44,20 @@ from qgis.core import (QgsProcessingAlgorithm,
                        QgsProcessingParameterRasterDestination)
 
 from computation.qgis_utils import add_layer_to_project
-from processing_alg.terraform_processing_algorithm import TerraformProcessingAlgorithm
-from topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
-from topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
+from processing_alg.terraform_algorithm import TerraformProcessingAlgorithm
+from processing_alg.topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
+from processing_alg.topocorrection.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
+from processing_alg.topocorrection.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
+from processing_alg.topocorrection.MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
+from processing_alg.topocorrection.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
+from processing_alg.topocorrection.PbcTopoCorrectionAlgorithm import PbcTopoCorrectionAlgorithm
+from processing_alg.topocorrection.PbmTopoCorrectionAlgorithm import PbmTopoCorrectionAlgorithm
+from processing_alg.topocorrection.ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
+from processing_alg.topocorrection.ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
+from processing_alg.topocorrection.TeilletRegressionTopoCorrectionAlgorithm import \
+    TeilletRegressionTopoCorrectionAlgorithm
+from processing_alg.topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
+from processing_alg.topocorrection.VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
 
 
 # from processing.core.ProcessingConfig import ProcessingConfig
@@ -66,17 +76,6 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         self.algorithms = self.find_algorithms()
 
     def find_algorithms(self):
-        from topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
-        from topocorrection.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
-        from topocorrection.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
-        from topocorrection.MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
-        from topocorrection.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
-        from topocorrection.PbmTopoCorrectionAlgorithm import PbmTopoCorrectionAlgorithm
-        from topocorrection.ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
-        from topocorrection.ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
-        from topocorrection.TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
-        from topocorrection.VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
-        from topocorrection.PbcTopoCorrectionAlgorithm import PbcTopoCorrectionAlgorithm
         algorithms = [
             CosineTTopoCorrectionAlgorithm,
             CosineCTopoCorrectionAlgorithm,
@@ -216,6 +215,29 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
 
         if feedback.isCanceled():
             return {}
+
+        # todo migrate topo correction algorithms to QgisExecutionContext
+        # class TopoCorrectionQgisExecutionContext(QgisExecutionContext):
+        #     def __init__(self, qgis_context: QgsProcessingContext, qgis_feedback: QgsProcessingFeedback,
+        #                  qgis_params: Dict[str, Any], input_layer: QgsRasterLayer, dem_layer: QgsRasterLayer,
+        #                  output_file_path: str, sza_degrees: float, solar_azimuth_degrees: float):
+        #         super().__init__(qgis_context, qgis_feedback, qgis_params, input_layer, dem_layer, output_file_path,
+        #                          sza_degrees, solar_azimuth_degrees)
+        #
+        #     def calculate_slope(inner, in_radians=True) -> str:
+        #         result_path = super().calculate_slope(in_radians)
+        #         self._add_layer_to_project(self.qgis_context, result_path, self.AuxiliaryLayers.SLOPE, "Slope_gen")
+        #         return result_path
+        #
+        #     def calculate_aspect(inner, in_radians=True) -> str:
+        #         result_path = super().calculate_aspect(in_radians)
+        #         self._add_layer_to_project(self.qgis_context, result_path, self.AuxiliaryLayers.ASPECT, "Aspect_gen")
+        #         return result_path
+        #
+        #     def calculate_luminance(inner, slope_path=None, aspect_path=None) -> str:
+        #         result_path = super().calculate_luminance(slope_path, aspect_path)
+        #         self._add_layer_to_project(self.qgis_context, result_path, self.AuxiliaryLayers.ASPECT, "Aspect_gen")
+        #         return result_path
 
         topo_context = TopoCorrectionContext(
             qgis_context=context,
