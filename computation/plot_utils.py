@@ -1,8 +1,4 @@
-from typing import Any
-
 from matplotlib import pyplot as plt
-
-from processing_alg.execution_context import QgisExecutionContext
 
 
 def draw_subplots(
@@ -32,19 +28,3 @@ def draw_subplots(
         plt.show()
 
     return fig, axes
-
-
-class TopoCorrectionEvalAlgorithm:
-    def __init__(self):
-        self.ctx = None
-
-    def process(self, ctx: QgisExecutionContext) -> Any:
-        self.ctx = ctx
-        return self.process_internal()
-
-    @staticmethod
-    def get_name() -> str:
-        pass
-
-    def process_internal(self) -> Any:
-        pass

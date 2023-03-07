@@ -44,6 +44,7 @@ from qgis.core import (QgsProcessingContext,
                        QgsProcessingParameterRasterDestination)
 
 from computation.qgis_utils import add_layer_to_project
+from processing_alg.execution_context import QgisExecutionContext
 from processing_alg.terraform_algorithm import TerraformProcessingAlgorithm
 from processing_alg.topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from processing_alg.topocorrection.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
@@ -199,46 +200,45 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         solar_zenith_angle = self.parameterAsDouble(parameters, 'SZA', context)
         solar_azimuth = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context)
 
-        self.show_tmp_layers = self.parameterAsEnums(parameters, 'SHOW_AUXILIARY_LAYERS', context)
-        feedback.pushInfo(f"ssssss {self.show_tmp_layers}")
-
-        slope_rad_path = self.build_slope_layer(feedback, context, dem_layer)
-        if feedback.isCanceled():
-            return {}
-
-        aspect_path = self.build_aspect_layer(feedback, context, dem_layer)
-        if feedback.isCanceled():
-            return {}
-
-        luminance_path = self.compute_luminance(
-            feedback, context, slope_rad_path, aspect_path, solar_zenith_angle, solar_azimuth)
-
-        if feedback.isCanceled():
-            return {}
-
         # todo migrate topo correction algorithms to QgisExecutionContext
-        # class TopoCorrectionQgisExecutionContext(QgisExecutionContext):
-        #     def __init__(self, qgis_context: QgsProcessingContext, qgis_feedback: QgsProcessingFeedback,
-        #                  qgis_params: Dict[str, Any], input_layer: QgsRasterLayer, dem_layer: QgsRasterLayer,
-        #                  output_file_path: str, sza_degrees: float, solar_azimuth_degrees: float):
-        #         super().__init__(qgis_context, qgis_feedback, qgis_params, input_layer, dem_layer, output_file_path,
-        #                          sza_degrees, solar_azimuth_degrees)
-        #
-        #     def calculate_slope(inner, in_radians=True) -> str:
-        #         result_path = super().calculate_slope(in_radians)
-        #         self._add_layer_to_project(self.qgis_context, result_path, self.AuxiliaryLayers.SLOPE, "Slope_gen")
-        #         return result_path
-        #
-        #     def calculate_aspect(inner, in_radians=True) -> str:
-        #         result_path = super().calculate_aspect(in_radians)
-        #         self._add_layer_to_project(self.qgis_context, result_path, self.AuxiliaryLayers.ASPECT, "Aspect_gen")
-        #         return result_path
-        #
-        #     def calculate_luminance(inner, slope_path=None, aspect_path=None) -> str:
-        #         result_path = super().calculate_luminance(slope_path, aspect_path)
-        #         self._add_layer_to_project(self.qgis_context, result_path, self.AuxiliaryLayers.ASPECT, "Aspect_gen")
-        #         return result_path
+        class TopoCorrectionQgisExecutionContext(QgisExecutionContext):
+            def __init__(inner):
+                super().__init__(context, feedback, parameters, input_layer, dem_layer, sza_degrees=solar_zenith_angle,
+                                 solar_azimuth_degrees=solar_azimuth)
 
+            def calculate_slope(inner, in_radians=True) -> str:
+                result_path = super().calculate_slope(in_radians)
+                self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.SLOPE, "Slope_gen")
+                return result_path
+
+            def calculate_aspect(inner, in_radians=True) -> str:
+                result_path = super().calculate_aspect(in_radians)
+                self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.ASPECT, "Aspect_gen")
+                return result_path
+
+            def calculate_luminance(inner, slope_path=None, aspect_path=None) -> str:
+                result_path = super().calculate_luminance(slope_path, aspect_path)
+                self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.LUMINANCE, "Luminance_gen")
+                return result_path
+
+        # todo tmp solution, need migrate fully to execution_context
+        exec_ctx = TopoCorrectionQgisExecutionContext()
+
+        self.show_tmp_layers = self.parameterAsEnums(parameters, 'SHOW_AUXILIARY_LAYERS', context)
+
+        slope_rad_path = exec_ctx.calculate_slope(in_radians=True)
+        if feedback.isCanceled():
+            return {}
+
+        aspect_path = exec_ctx.calculate_aspect(in_radians=True)
+        if feedback.isCanceled():
+            return {}
+
+        luminance_path = exec_ctx.calculate_luminance(slope_rad_path, aspect_path)
+        if feedback.isCanceled():
+            return {}
+
+        # todo replace with exec_ctx
         topo_context = TopoCorrectionContext(
             qgis_context=context,
             qgis_feedback=feedback,
@@ -255,40 +255,6 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
 
         # add validation
         return self.algorithms[tc_algorithm_name].process(topo_context)
-
-    def build_slope_layer(self, feedback, context, dem_layer, in_radians=True) -> str:
-        result_path = super().build_slope_layer(feedback, context, dem_layer, in_radians)
-        self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.SLOPE, "Slope_gen")
-        return result_path
-
-    def build_aspect_layer(self, feedback, context, dem_layer, in_radians=False) -> str:
-        result_path = super().build_aspect_layer(feedback, context, dem_layer, in_radians)
-        self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.ASPECT, "Aspect_gen")
-        return result_path
-
-    def compute_luminance(self, feedback, context, slope_rad_path: str, aspect_path: str, sza: float,
-                          solar_azimuth: float) -> str:
-        sza_radians = radians(sza)
-        solar_azimuth_radians = radians(solar_azimuth)
-
-        results = processing.run(
-            'gdal:rastercalculator',
-            {
-                'INPUT_A': slope_rad_path,
-                'BAND_A': 1,
-                'INPUT_B': aspect_path,
-                'BAND_B': 1,
-                'FORMULA': f'fmax(0.0, (cos({sza_radians})*cos(A) + '
-                           f'sin({sza_radians})*sin(A)*cos(deg2rad(B) - {solar_azimuth_radians})))',
-                'OUTPUT': 'TEMPORARY_OUTPUT',
-            },
-            feedback=feedback,
-            context=context,
-            is_child_algorithm=True
-        )
-        result_path = results['OUTPUT']
-        self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.LUMINANCE, "Luminance_gen")
-        return result_path
 
     def _add_layer_to_project(self, context, layer_path, show_label: AuxiliaryLayers, name="out"):
         if show_label.value in self.show_tmp_layers:

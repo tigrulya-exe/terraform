@@ -5,51 +5,25 @@ from typing import Dict, Any
 import processing
 from qgis.core import QgsProcessingContext, QgsProcessingFeedback, QgsRasterLayer
 
-
-class ExecutionContext:
+class QgisExecutionContext:
     def __init__(
             self,
-            # todo move qgis connected stuff to QgisExecutionContext
             qgis_context: QgsProcessingContext,
             qgis_feedback: QgsProcessingFeedback,
             qgis_params: Dict[str, Any],
             input_layer: QgsRasterLayer,
             dem_layer: QgsRasterLayer,
-            output_file_path: str,
-            sza_degrees: float,
-            solar_azimuth_degrees: float):
+            output_file_path: str = None,
+            sza_degrees: float = None,
+            solar_azimuth_degrees: float = None):
         self.qgis_context = qgis_context
         self.qgis_params = qgis_params
         self.qgis_feedback = qgis_feedback
         self.input_layer = input_layer
         self.dem_layer = dem_layer
-        self.output_file_path = output_file_path
         self.sza_degrees = sza_degrees
         self.solar_azimuth_degrees = solar_azimuth_degrees
-
-    def calculate_slope(self, in_radians=True) -> str:
-        pass
-
-    def calculate_aspect(self, in_radians=True) -> str:
-        pass
-
-    def calculate_luminance(self, slope_path=None, aspect_path=None) -> str:
-        pass
-
-
-class QgisExecutionContext(ExecutionContext):
-    def __init__(
-            self,
-            qgis_context: QgsProcessingContext,
-            qgis_feedback: QgsProcessingFeedback,
-            qgis_params: Dict[str, Any],
-            input_layer: QgsRasterLayer,
-            dem_layer: QgsRasterLayer,
-            output_file_path: str,
-            sza_degrees: float,
-            solar_azimuth_degrees: float):
-        super().__init__(qgis_context, qgis_feedback, qgis_params, input_layer, dem_layer, output_file_path,
-                         sza_degrees, solar_azimuth_degrees)
+        self.output_file_path = output_file_path
 
     @functools.cache
     def calculate_slope(self, in_radians=True) -> str:
@@ -124,6 +98,9 @@ class QgisExecutionContext(ExecutionContext):
 
     @functools.cache
     def calculate_luminance(self, slope_path=None, aspect_path=None) -> str:
+        if self.sza_degrees is None or self.solar_azimuth_degrees is None:
+            raise RuntimeError(f"SZA and azimuth angles not initializes")
+
         if slope_path is None:
             slope_path = self.calculate_slope()
 

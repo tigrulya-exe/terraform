@@ -36,4 +36,4 @@ def classFactory(iface):  # pylint: disable=invalid-name
     """
     #
     from .terraform import TerraformTopoCorrectionPlugin
-    return TerraformTopoCorrectionPlugin()
+    return TerraformTopoCorrectionPlugin(iface)

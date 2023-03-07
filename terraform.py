@@ -34,7 +34,19 @@ import os
 import sys
 import inspect
 
-from qgis.core import QgsApplication
+from qgis.core import (
+    QgsApplication,
+    QgsProject
+)
+from qgis.gui import (
+    QgsOptionsWidgetFactory,
+    QgsOptionsPageWidget
+)
+
+from qgis.PyQt.QtCore import QDir
+from qgis.PyQt.QtWidgets import QMessageBox, QAction, QHBoxLayout
+from qgis.PyQt.QtGui import QIcon
+
 from .terraform_processing_provider import TerraformProcessingProvider
 
 cmd_folder = os.path.split(inspect.getfile(inspect.currentframe()))[0]
@@ -45,8 +57,10 @@ if cmd_folder not in sys.path:
 
 class TerraformTopoCorrectionPlugin(object):
 
-    def __init__(self):
+    def __init__(self, iface):
         self.provider = None
+        # save reference to the QGIS interface
+        self.iface = iface
 
     def initProcessing(self):
         """Init Processing provider for QGIS >= 3.8."""
@@ -56,5 +70,15 @@ class TerraformTopoCorrectionPlugin(object):
     def initGui(self):
         self.initProcessing()
 
+        self.key_action = QAction("Test Plugin", self.iface.mainWindow())
+        self.iface.registerMainWindowAction(self.key_action, "Ctrl+I")  # action triggered by Ctrl+I
+        self.iface.addPluginToMenu("&Test plugins", self.key_action)
+        self.key_action.triggered.connect(self.key_action_triggered)
+
+    def key_action_triggered(self):
+        QMessageBox.information(self.iface.mainWindow(), "Ok", "You pressed Ctrl+I")
+
     def unload(self):
         QgsApplication.processingRegistry().removeProvider(self.provider)
+
+        self.iface.unregisterMainWindowAction(self.key_action)

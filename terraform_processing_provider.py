@@ -32,8 +32,9 @@ __revision__ = '$Format:%H$'
 
 from qgis.core import QgsProcessingProvider
 
-from processing_alg.topocorrection_algorithm import TerraformTopoCorrectionAlgorithm
-from processing_alg.topocorrection_eval_algorithm import TopocorrectionEvaluationAlgorithm
+from processing_alg.topocorrection.topocorrection_algorithm import TerraformTopoCorrectionAlgorithm
+from processing_alg.topocorrection_eval.correlation_eval import CorrelationEvaluationAlgorithm
+from processing_alg.topocorrection_eval.rose_diagram_eval import RoseDiagramEvaluationAlgorithm
 
 
 class TerraformProcessingProvider(QgsProcessingProvider):
@@ -56,7 +57,8 @@ class TerraformProcessingProvider(QgsProcessingProvider):
         Loads all algorithms belonging to this provider.
         """
         self.addAlgorithm(TerraformTopoCorrectionAlgorithm())
-        self.addAlgorithm(TopocorrectionEvaluationAlgorithm())
+        self.addAlgorithm(CorrelationEvaluationAlgorithm())
+        self.addAlgorithm(RoseDiagramEvaluationAlgorithm())
 
     def id(self):
         """

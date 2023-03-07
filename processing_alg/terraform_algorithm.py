@@ -33,8 +33,6 @@ __revision__ = '$Format:%H$'
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.core import (QgsProcessingAlgorithm)
 
-import processing
-
 
 class TerraformProcessingAlgorithm(QgsProcessingAlgorithm):
 
@@ -56,72 +54,3 @@ class TerraformProcessingAlgorithm(QgsProcessingAlgorithm):
         to.
         """
         return 'topocorrection'
-
-    def build_slope_layer(self, feedback, context, dem_layer, in_radians=True) -> (str, str):
-        results = processing.run(
-            "gdal:slope",
-            {
-                'INPUT': dem_layer,
-                'BAND': 1,
-                # magic number 111120 lol
-                'SCALE': 1,
-                'AS_PERCENT': False,
-                'COMPUTE_EDGES': True,
-                'ZEVENBERGEN': True,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-            },
-            feedback=feedback,
-            context=context,
-            is_child_algorithm=True
-        )
-        result_deg_path = results['OUTPUT']
-
-        if not in_radians:
-            return result_deg_path
-
-        slope_cos_result = processing.run(
-            'gdal:rastercalculator',
-            {
-                'INPUT_A': result_deg_path,
-                'BAND_A': 1,
-                'FORMULA': f'deg2rad(A)',
-                'OUTPUT': 'TEMPORARY_OUTPUT',
-            },
-            feedback=feedback,
-            context=context
-        )
-        return slope_cos_result['OUTPUT']
-
-    def build_aspect_layer(self, feedback, context, dem_layer, in_radians=True) -> str:
-        results = processing.run(
-            "gdal:aspect",
-            {
-                'INPUT': dem_layer,
-                'BAND': 1,
-                'TRIG_ANGLE': False,
-                'ZERO_FLAT': True,
-                'COMPUTE_EDGES': True,
-                'ZEVENBERGEN': True,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
-            },
-            feedback=feedback,
-            context=context,
-            is_child_algorithm=True
-        )
-
-        result_deg_path = results['OUTPUT']
-        if not in_radians:
-            return result_deg_path
-
-        slope_cos_result = processing.run(
-            'gdal:rastercalculator',
-            {
-                'INPUT_A': result_deg_path,
-                'BAND_A': 1,
-                'FORMULA': f'deg2rad(A)',
-                'OUTPUT': 'TEMPORARY_OUTPUT',
-            },
-            feedback=feedback,
-            context=context
-        )
-        return slope_cos_result['OUTPUT']
