@@ -1,12 +1,13 @@
+from enum import Enum
 from typing import Any, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
-from qgis._core import QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingParameterBoolean, \
-    QgsProcessingParameterString
+from qgis.core import QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingParameterBoolean, \
+    QgsProcessingParameterString, QgsProcessingParameterEnum
 
 from computation import gdal_utils
-from computation.plot_utils import draw_subplots
+from computation.plot_utils import draw_subplots, norm_from_scale
 from processing_alg.execution_context import QgisExecutionContext
 from processing_alg.topocorrection_eval.topocorrection_eval_algorithm import TopocorrectionEvaluationAlgorithm
 
@@ -15,14 +16,18 @@ def plot_histograms(
         histograms,
         luminance_bytes,
         cmap="seismic",
+        norm_method="linear",
         plot_regression_line=True,
         subplots_in_row=4,
         output_file_path=None,
         show_plot=True):
     def subplot_histogram(ax, idx):
         histogram, xmin, xmax, ymin, ymax, intercept, slope = histograms[idx]
+
+        ax.set_title(f'Band №{idx + 1}')
         img = ax.imshow(
             histogram,
+            norm=norm_from_scale(norm_method),
             # interpolation='nearest',
             origin='lower',
             extent=[xmin, xmax, ymin, ymax],
@@ -51,6 +56,7 @@ def build_densities(
         img_ds,
         bins=100,
         cmap="seismic",
+        norm_method="linear",
         plot_regression_line=True,
         output_file_path=None,
         show_plot=True):
@@ -76,6 +82,7 @@ def build_densities(
         histograms,
         luminance_bytes,
         cmap,
+        norm_method=norm_method,
         output_file_path=output_file_path,
         plot_regression_line=plot_regression_line,
         show_plot=show_plot)
@@ -86,6 +93,13 @@ def build_densities(
 # build_densities(luminance_bytes, img_ds, cmap="coolwarm")
 
 class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
+    class ScaleMethod(str, Enum):
+        LINEAR = 'linear'
+        LOG = 'log'
+        SYMMETRIC_LOG = 'symlog'
+        # ASINH = 'asinh'
+        # LOGIT = 'logit'
+
     def initAlgorithm(self, config=None):
         super().initAlgorithm(config)
 
@@ -132,6 +146,17 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
             )
         )
 
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                'PIXEL_SCALE_METHOD',
+                self.tr('The normalization method used to scale pixel values to the [0, 1] range of colormap'),
+                options=[e for e in self.ScaleMethod],
+                allowMultiple=False,
+                defaultValue='linear',
+                usesStaticStrings=True
+            )
+        )
+
     def createInstance(self):
         return CorrelationEvaluationAlgorithm()
 
@@ -168,12 +193,14 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
 
         luminance_bytes = gdal_utils.read_band_as_array(luminance_path).ravel()
         img_ds = gdal_utils.open_img(context.input_layer.source())
+
         build_densities(
             luminance_bytes,
             img_ds,
             bins=self.parameterAsInt(parameters, 'BIN_COUNT', context.qgis_context),
             cmap=self.parameterAsString(parameters, 'PLOT_COLORMAP', context.qgis_context),
             plot_regression_line=self.parameterAsBoolean(parameters, 'DRAW_REGRESSION_LINE', context.qgis_context),
+            norm_method=self.parameterAsEnumString(parameters, 'PIXEL_SCALE_METHOD', context.qgis_context),
             output_file_path=context.output_file_path,
             show_plot=False
         )

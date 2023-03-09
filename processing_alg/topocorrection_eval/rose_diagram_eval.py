@@ -4,8 +4,7 @@ from typing import Any, Dict
 import numpy as np
 import numpy_groupies as npg
 from matplotlib import pyplot as plt
-from qgis._core import QgsProcessingParameterNumber
-from qgis.core import QgsProcessingFeedback
+from qgis.core import QgsProcessingFeedback, QgsProcessingParameterNumber
 
 from computation import gdal_utils
 from processing_alg.execution_context import QgisExecutionContext
@@ -23,6 +22,17 @@ def divide_to_groups(groups_count, upper_bound, lower_bound=0):
 def get_slope_label(slope_groups_bounds, idx):
     higher_bound = "+" if len(slope_groups_bounds) == idx + 1 else f"-{slope_groups_bounds[idx + 1]}"
     return f"{slope_groups_bounds[idx]}{higher_bound}°"
+
+
+def compute_statistics(array) -> dict[str, float]:
+    percentiles = [0, 50, 95, 97, 99]
+    percentiles_values = {
+        f'percentile_{percentiles[idx]}': value for idx, value in enumerate(np.percentile(array, percentiles))
+    }
+    return {
+               'mean': np.mean(array),
+               'stddev': np.std(array),
+           } | percentiles_values
 
 
 def plot_rose_diagrams(
@@ -45,7 +55,7 @@ def plot_rose_diagrams(
     if len(group_means_list) % subplots_in_row != 0:
         row_count += 1
 
-    fig, axes = plt.subplots(row_count, subplots_in_row, subplot_kw=dict(projection='polar'), figsize=(15, 15))
+    fig, axes = plt.subplots(row_count, subplots_in_row, subplot_kw=dict(projection='polar'), figsize=(20, 20))
 
     for idx, ax in enumerate(axes.flat):
         if idx >= len(group_means_list):
@@ -53,6 +63,8 @@ def plot_rose_diagrams(
             continue
 
         group_means = group_means_list[idx]
+        stats = ",\n".join([f"{name} = {value:.3f}" for name, value in compute_statistics(group_means.ravel()).items()])
+
         # tick - 30 degree
         ax.set_xticks(np.linspace(0, 2 * np.pi, 12, endpoint=False))
         ax.set_rlabel_position(0)
@@ -63,6 +75,10 @@ def plot_rose_diagrams(
                            MPLT_MARKERS[slope_bound_idx % len(MPLT_MARKERS)]
             ax.plot(aspect_bounds_rad, subgroup_means, point_design,
                     label=get_slope_label(slope_groups_bounds, slope_bound_idx))
+            ax.text(.5, -.1, stats,
+                    horizontalalignment='center',
+                    verticalalignment='top',
+                    transform=ax.transAxes)
 
         # ax.legend(bbox_to_anchor=(1.04, 0.5), loc="center left", borderaxespad=0, title='Slope')
         ax.tick_params(axis='y', rotation=45)
@@ -75,7 +91,8 @@ def plot_rose_diagrams(
         loc="center left",
         borderaxespad=0,
         title='Slope',
-        fontsize=16
+        fontsize=16,
+        title_fontsize=18
     )
 
     plt.tight_layout()
@@ -88,22 +105,6 @@ def plot_rose_diagrams(
 def group_by_range(arr, groups_count, upper_bound, lower_bound=0):
     group_size = (upper_bound - lower_bound) // groups_count
     return ((arr - lower_bound) // group_size).astype(int, copy=False)
-
-
-def calculate_rose_groups(
-        img_bytes,
-        slope_bytes,
-        aspect_bytes,
-        slope_groups_count=3,
-        slope_max_deg=90,
-        aspect_groups_count=36,
-        aspect_max_deg=360):
-    slope_groups = group_by_range(slope_bytes, slope_groups_count, upper_bound=slope_max_deg)
-    aspect_groups = group_by_range(aspect_bytes, aspect_groups_count, upper_bound=aspect_max_deg)
-    groups = np.vstack((slope_groups, aspect_groups))
-
-    group_means = npg.aggregate(groups, img_bytes, func='mean', fill_value=0)
-    return group_means
 
 
 def get_flat_band(ds, band_idx):
@@ -146,7 +147,6 @@ def build_polar_diagrams(
 
 
 class RoseDiagramEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
-
     def initAlgorithm(self, config=None):
         super().initAlgorithm(config)
 

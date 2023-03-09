@@ -59,7 +59,7 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
             QgsProcessingParameterFileDestination(
                 'IMG_PLOT_OUT_PATH',
                 self.tr('Output path of rose diagram'),
-                fileFilter="*.png"
+                fileFilter="(*.png *.svg)"
             )
         )
 
@@ -109,5 +109,5 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
         output_file_path = self.parameterAsFileOutput(parameters, 'IMG_PLOT_OUT_PATH', context)
 
         pre, ext = os.path.splitext(output_file_path)
-        return pre + '.png'
+        return pre + '.png' if ext not in ('.png', '.svg') else output_file_path
 
