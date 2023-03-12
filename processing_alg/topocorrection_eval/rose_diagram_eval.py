@@ -6,9 +6,9 @@ import numpy_groupies as npg
 from matplotlib import pyplot as plt
 from qgis.core import QgsProcessingFeedback, QgsProcessingParameterNumber
 
-from ...computation import gdal_utils
+from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext
-from .topocorrection_eval_algorithm import TopocorrectionEvaluationAlgorithm
+from ...computation import gdal_utils
 
 MPLT_MARKERS = "ov^<>1235sp*X"
 MPLT_COLOURS = "bgrcmyk"
@@ -209,7 +209,28 @@ class RoseDiagramEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
         """
         Returns a localised short help string for the algorithm.
         """
-        return self.tr('Contains rose diagrams topocorrection algorithm evaluation method.')
+        return self.tr("Radiances of a remotely sensed image were divided into the <i>Slope groups count</i> "
+                       "groups according to the fixed slope intervals of the terrain "
+                       "(the maximum considered slope can be configured by argument <i>Slope degrees top limit</i>). "
+                       "For each group, radiances were divided into <i>Aspect groups count</i> "
+                       "subgroups according to the fixed aspect intervals of the terrain "
+                       "(the maximum considered aspect can be configured by argument <i>Slope degrees top limit</i>). "
+                       "Next, mean values of the radiances of the sub-groups were calculated "
+                       "and plotted on the rose diagram. The polar angle of the rose diagram "
+                       "represents the aspect of terrain, and the radius represents the value "
+                       "of radiances. \n"
+                       "If the corrected radiances show no azimuth dependence, i.e the subgroup "
+                       "radiances’ standard deviation is close to zero, the topographic correction "
+                       "can be considered to be successful. Thus, the case of a successful correction "
+                       "can be seen both visually (the points on the diagram form a circle) and with "
+                       "the help of subsequent statistical analysis of the radiation values of the "
+                       "subgroups (small values of standard deviation, coefficient of variation, etc.). "
+                       "In addition, using this method, it is relatively easy to determine for surfaces "
+                       "with which slopes and aspects a topographic correction algorithm works well, "
+                       "and for which it needs to be improved. \n"
+                       "<b>Note:</b> the slope and aspect of the input raster image are calculated automatically, "
+                       "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
+                       "the same CRS, extent and spatial resolution.")
 
     def processAlgorithmInternal(
             self,

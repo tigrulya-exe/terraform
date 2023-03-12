@@ -41,9 +41,6 @@ from qgis.core import (QgsProcessingContext,
                        QgsProcessingParameterRasterLayer,
                        QgsProcessingParameterRasterDestination)
 
-from ...computation.qgis_utils import add_layer_to_project
-from ..execution_context import QgisExecutionContext
-from ..terraform_algorithm import TerraformProcessingAlgorithm
 from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from .CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
 from .CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
@@ -56,6 +53,9 @@ from .ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
 from .TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
 from .TopoCorrectionAlgorithm import TopoCorrectionContext
 from .VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
+from ..execution_context import QgisExecutionContext
+from ..terraform_algorithm import TerraformProcessingAlgorithm
+from ...computation.qgis_utils import add_layer_to_project
 
 
 # from processing.core.ProcessingConfig import ProcessingConfig
@@ -118,7 +118,25 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         """
         Returns a localised short help string for the algorithm.
         """
-        return self.tr('Topographically correct provided input layer.')
+        return self.tr('Topographically corrects provided raster image. '
+                       'Algorithm automatically builds slope and aspect layers for input image for calculation of '
+                       'the incidence angle between the sun and normal to the ground surface. '
+                       'The latter then is used in chosen topographic correction algorithm.\n'
+                       r'<b>Note:</b> currently, the input raster image and the DEM must have the same CRS, '
+                       'extent and spatial resolution.\n'
+                       """Implemented algorithms: 
+                       <a href="https://www.tandfonline.com/doi/abs/10.1080/07038992.1982.10855028">Cosine-T</a>
+                       <a href="https://www.asprs.org/wp-content/uploads/pers/1989journal/sep/1989_sep_1303-1309.pdf">Cosine-C</a>
+                       <a href="https://www.tandfonline.com/doi/abs/10.1080/07038992.1982.10855028">C-correction</a>
+                       <a href="http://dx.doi.org/10.1016/S0034-4257(97)00177-6">SCS</a>
+                       <a href="http://dx.doi.org/10.1109/TGRS.2005.852480">SCS+C</a>
+                       <a href="https://www.asprs.org/wp-content/uploads/pers/1980journal/sep/1980_sep_1183-1189.pdf">Minnaert</a>
+                       <a href="https://ui.adsabs.harvard.edu/abs/2002PhDT........92R/abstract">Minnaert-SCS</a>
+                       <a href="https://www.researchgate.net/publication/235244169_Pixel-based_Minnaert_Correction_Method_for_Reducing_Topographic_Effects_on_a_Landsat_7_ETM_Image">Pixel-based Minnaert</a> 
+                       <a href="https://www.tandfonline.com/doi/full/10.1080/01431160701881889">Pixel-based C correction</a>
+                       <a href="https://ieeexplore.ieee.org/abstract/document/4423917/">VECA</a>
+                       <a href="https://www.tandfonline.com/doi/abs/10.1080/07038992.1982.10855028">Teillet regression</a>
+                       """)
 
     def initAlgorithm(self, config=None):
         """
@@ -143,7 +161,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 'TOPO_CORRECTION_ALGORITHM',
-                self.tr('Topological correction algorithm'),
+                self.tr('Topographic correction algorithm'),
                 options=self.algorithms.keys(),
                 allowMultiple=False,
                 defaultValue=CTopoCorrectionAlgorithm.get_name(),
@@ -154,7 +172,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterEnum(
                 'SHOW_AUXILIARY_LAYERS',
-                self.tr('Auxiliary layers to show'),
+                self.tr('Auxiliary generated layers to open after running algorithm'),
                 options=[e.name for e in self.AuxiliaryLayers],
                 allowMultiple=True,
                 optional=True
@@ -164,7 +182,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterNumber(
                 'SZA',
-                self.tr('Solar zenith angle'),
+                self.tr('Solar zenith angle (in degrees)'),
                 defaultValue=57.2478878065826,
                 type=QgsProcessingParameterNumber.Double
             )
@@ -173,7 +191,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterNumber(
                 'SOLAR_AZIMUTH',
-                self.tr('Solar azimuth'),
+                self.tr('Solar azimuth (in degrees)'),
                 defaultValue=177.744663052425,
                 type=QgsProcessingParameterNumber.Double
             )
@@ -182,7 +200,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 'OUTPUT',
-                self.tr('Raster output')
+                self.tr('Result output')
             )
         )
 

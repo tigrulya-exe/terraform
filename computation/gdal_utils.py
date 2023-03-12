@@ -27,7 +27,6 @@ class OutOfCoreRegressor:
         self.xy_sum += np.dot(x_flat, y_flat.T)
         self.elements_num += len(x_flat)
 
-
     def train(self):
         a = np.array([
             [self.x_square_sum, self.x_sum],
@@ -35,6 +34,7 @@ class OutOfCoreRegressor:
         ], dtype='float')
         b = np.array([self.xy_sum, self.y_sum], dtype='float')
         return np.linalg.solve(a, b)
+
 
 def open_img(path, access=GA_ReadOnly):
     ds = gdal.Open(path, access)
@@ -44,9 +44,11 @@ def open_img(path, access=GA_ReadOnly):
 
     return ds
 
+
 def read_band_as_array(path: str, band_idx: int = 1):
     ds = open_img(path)
     return ds.GetRasterBand(band_idx).ReadAsArray()
+
 
 def raster_linear_regression(x_path: str, y_path: str, x_band:int = 1, y_band: int = 1):
     x_flat = read_band_as_array(x_path, x_band).ravel()
@@ -54,6 +56,7 @@ def raster_linear_regression(x_path: str, y_path: str, x_band:int = 1, y_band: i
 
     res = np.polynomial.polynomial.polyfit(x_flat, y_flat, 1)
     return res
+
 
 def raster_partial_linear_regression(x_path: str, y_path: str) -> List[List[float]]:
     x_ds = open_img(x_path)

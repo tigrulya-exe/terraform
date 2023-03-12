@@ -5,6 +5,8 @@ from typing import Dict, Any
 import processing
 from qgis.core import QgsProcessingContext, QgsProcessingFeedback, QgsRasterLayer
 
+from ..computation.qgis_utils import check_compatible
+
 
 # todo use simple raster calc in methods instead of qgis raster calc
 class QgisExecutionContext:
@@ -18,6 +20,7 @@ class QgisExecutionContext:
             output_file_path: str = None,
             sza_degrees: float = None,
             solar_azimuth_degrees: float = None):
+        check_compatible(input_layer, dem_layer)
         self.qgis_context = qgis_context
         self.qgis_params = qgis_params
         self.qgis_feedback = qgis_feedback

@@ -2,20 +2,18 @@ import os
 from typing import Dict, Any
 
 from qgis.PyQt.QtCore import QCoreApplication
-from qgis._core import QgsProcessingParameterFileDestination, QgsProcessingParameterBoolean
 from qgis.core import (QgsProcessingContext,
+                       QgsProcessingParameterFileDestination,
+                       QgsProcessingParameterBoolean,
                        QgsProcessingFeedback,
                        QgsProcessingParameterRasterLayer)
 
-from ...computation.qgis_utils import add_layer_to_project
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
+from ...computation.qgis_utils import add_layer_to_project
 
 
 class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
-    def __init__(self):
-        super().__init__()
-
     def tr(self, string):
         """
         Returns a translatable string with the self.tr() function.
@@ -66,7 +64,7 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterBoolean(
                 'OPEN_OUT_FILE',
-                self.tr('Open output file after algorithm finish'),
+                self.tr('Open output file after running algorithm'),
                 defaultValue=True
             )
         )

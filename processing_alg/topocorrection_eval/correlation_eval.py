@@ -9,7 +9,7 @@ from qgis.core import QgsProcessingFeedback, QgsProcessingParameterNumber, QgsPr
 from ...computation import gdal_utils
 from ...computation.plot_utils import draw_subplots, norm_from_scale
 from ..execution_context import QgisExecutionContext
-from .topocorrection_eval_algorithm import TopocorrectionEvaluationAlgorithm
+from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 
 
 def plot_histograms(
@@ -88,14 +88,10 @@ def build_densities(
         show_plot=show_plot)
 
 
-# luminance_bytes = gdal_utils.read_band_as_array(r"..\..\test\resources\LUMINANCE_3.tif").ravel()
-# img_ds = gdal_utils.open_img(r"..\..\test\resources\CUT_INPUT_3.tif")
-# build_densities(luminance_bytes, img_ds, cmap="coolwarm")
-
 class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
     class ScaleMethod(str, Enum):
         LINEAR = 'linear'
-        LOG = 'log'
+        # LOG = 'log'
         SYMMETRIC_LOG = 'symlog'
         # ASINH = 'asinh'
         # LOGIT = 'logit'
@@ -106,7 +102,7 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
         self.addParameter(
             QgsProcessingParameterNumber(
                 'SZA',
-                self.tr('Solar zenith angle'),
+                self.tr('Solar zenith angle (in degrees)'),
                 defaultValue=57.2478878065826,
                 type=QgsProcessingParameterNumber.Double
             )
@@ -115,7 +111,7 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
         self.addParameter(
             QgsProcessingParameterNumber(
                 'SOLAR_AZIMUTH',
-                self.tr('Solar azimuth'),
+                self.tr('Solar azimuth (in degrees)'),
                 defaultValue=177.744663052425,
                 type=QgsProcessingParameterNumber.Double
             )
@@ -124,7 +120,7 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
         self.addParameter(
             QgsProcessingParameterBoolean(
                 'DRAW_REGRESSION_LINE',
-                self.tr('Draw regression line'),
+                self.tr('Draw correlation line on plots'),
                 defaultValue=True
             )
         )
@@ -176,7 +172,14 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
         """
         Returns a localised short help string for the algorithm.
         """
-        return self.tr('Computes correlation between corrected image and luminance.')
+        return self.tr('Builds density plots (2d histograms) of the relationship between '
+                       'raster image bands and illumination model of that image.\n'
+                       'Also see Matplotlib docs of <a href="https://matplotlib.org/stable/tutorials/colors/colormapnorms.html">the normalization methods</a> '
+                       'and <a href="https://matplotlib.org/stable/gallery/color/colormap_reference.html">the colormaps</a> '
+                       'for additional info about algorithm arguments.\n'
+                       "<b>Note:</b> the illumination model of the input raster image is calculated automatically, "
+                       "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
+                       "the same CRS, extent and spatial resolution.")
 
     def processAlgorithmInternal(
             self,
