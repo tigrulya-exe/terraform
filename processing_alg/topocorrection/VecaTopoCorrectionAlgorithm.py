@@ -22,12 +22,14 @@ class VecaTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
             luminance = kwargs["luminance"]
 
             denominator = slope * luminance + intercept
-            return input_band * np.divide(
+            result = input_band * np.divide(
                 self.raster_means[band_idx],
                 denominator,
                 out=input_band.astype('float32'),
                 where=np.logical_and(denominator > 0, input_band > 5)
             )
+            result[result <= 0] = self._calculate_zero_noise()
+            return result
 
         return self.raster_calculate(
             calc_func=calculate,

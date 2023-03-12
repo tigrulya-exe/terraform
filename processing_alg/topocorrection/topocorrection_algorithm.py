@@ -112,7 +112,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         """
         Returns the translated algorithm name.
         """
-        return self.tr('Terraform topographic correction')
+        return self.tr('Topographically correct raster image')
 
     def shortHelpString(self):
         """

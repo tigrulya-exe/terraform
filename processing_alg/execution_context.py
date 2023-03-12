@@ -5,6 +5,8 @@ from typing import Dict, Any
 import processing
 from qgis.core import QgsProcessingContext, QgsProcessingFeedback, QgsRasterLayer
 
+
+# todo use simple raster calc in methods instead of qgis raster calc
 class QgisExecutionContext:
     def __init__(
             self,

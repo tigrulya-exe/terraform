@@ -19,7 +19,9 @@ class TeilletRegressionTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlg
             input_band = kwargs["input"]
             luminance = kwargs["luminance"]
 
-            return input_band - slope * luminance - intercept + self.raster_means[band_idx]
+            result = input_band - slope * luminance - intercept + self.raster_means[band_idx]
+            result[result <= 0] = self._calculate_zero_noise()
+            return result
 
         return self.raster_calculate(
             calc_func=calculate,

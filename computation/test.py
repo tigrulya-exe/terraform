@@ -24,8 +24,8 @@ class OutOfCoreRegressor:
         x_flat = x.ravel()
         y_flat = y.ravel()
         self.x_sum += np.sum(x_flat)
-        if np.isinf(self.x_sum):
-            print(f'gg{self.elements_num}-{x_flat} ++++++ {y_flat}')
+        # if np.isinf(self.x_sum):
+        #     print(f'gg{self.elements_num}-{x_flat} ++++++ {y_flat}')
 
         self.y_sum += np.sum(y_flat)
         self.x_square_sum += np.dot(x_flat, x_flat.T)
@@ -61,7 +61,7 @@ def raster_linear_regression(x_path: str, y_path: str) -> List[List[float]]:
 
         weights = regressor.train()
         band_weights.append(weights)
-        print(weights)
+        # print(weights)
 
     return band_weights
 
@@ -79,7 +79,7 @@ def raster_linear_regression_full(x_path: str, y_path: str):
     res = np.polynomial.polynomial.polyfit(x_flat, y_flat, 1)
 
     band_weights = [res]
-    print(res)
+    # print(res)
 
     return band_weights
 

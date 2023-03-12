@@ -92,8 +92,8 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
 
         result = self.processAlgorithmInternal(parameters, execution_ctx, feedback)
 
-        if self.parameterAsBoolean(parameters, 'OPEN_OUT_FILE', context):
-            add_layer_to_project(context, output_file_path, "Eval_result")
+        if self.parameterAsBoolean(parameters, 'OPEN_OUT_FILE', context) and output_file_path.endswith('png'):
+            add_layer_to_project(context, output_file_path, f"Result_{self.name()}")
 
         return result
 

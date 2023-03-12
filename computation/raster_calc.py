@@ -85,8 +85,8 @@ class SimpleRasterCalc:
             # check that the GeoTransforms of each layer are the same
             myFileGeoTransform = myFile.GetGeoTransform(can_return_null=True)
             GeoTransformCheck = myFileGeoTransform
-            print(f"file {alpha}: {filename}, dimensions: "
-                  f"{DimensionsCheck[0]}, {DimensionsCheck[1]}, type: {myDataType[-1]}")
+            # print(f"file {alpha}: {filename}, dimensions: "
+            #       f"{DimensionsCheck[0]}, {DimensionsCheck[1]}, type: {myDataType[-1]}")
 
         allBandsCount = 1
 

@@ -67,16 +67,16 @@ def build_densities(
     for band_idx in range(img_ds.RasterCount):
         band = img_ds.GetRasterBand(band_idx + 1)
         band_bytes = band.ReadAsArray().ravel()
-        band_stats = band.GetStatistics(True, True)
+        img_min, img_max, *_ = band.GetStatistics(True, True)
         histogram, _, _ = np.histogram2d(
             luminance_bytes,
             band_bytes,
             bins=bins,
-            range=[[x_min, x_max], [band_stats[0], band_stats[1]]]
+            range=[[x_min, x_max], [img_min, img_max]]
         )
 
         intercept, slope = np.polynomial.polynomial.polyfit(luminance_bytes, band_bytes, 1)
-        histograms.append((histogram.T, x_min, x_max, band_stats[0], band_stats[1], intercept, slope))
+        histograms.append((histogram.T, x_min, x_max, img_min, img_max, intercept, slope))
 
     plot_histograms(
         histograms,
