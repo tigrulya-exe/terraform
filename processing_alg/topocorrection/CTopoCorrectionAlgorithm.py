@@ -1,8 +1,8 @@
 import numpy as np
 
-from processing_alg.topocorrection.SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
-from processing_alg.topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
-from computation.raster_calc import RasterInfo
+from .SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
+from .TopoCorrectionAlgorithm import TopoCorrectionContext
+from ...computation.raster_calc import RasterInfo
 
 
 class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):

@@ -1,8 +1,8 @@
 import numpy as np
 
-from computation.raster_calc import RasterInfo
-from processing_alg.topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
-from processing_alg.topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
+from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
+from .TopoCorrectionAlgorithm import TopoCorrectionContext
+from ...computation.raster_calc import RasterInfo
 
 
 class ScsCTopoCorrectionAlgorithm(CTopoCorrectionAlgorithm):

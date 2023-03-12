@@ -1,12 +1,12 @@
 from typing import List
 
+import numpy as np
 from osgeo import gdal
 from osgeo.gdalconst import GA_ReadOnly
-import numpy as np
 from osgeo_utils.auxiliary.util import open_ds
 
-from computation.gdal_utils import read_hline
-from computation.raster_calc import SimpleRasterCalc, RasterInfo
+from .gdal_utils import read_hline
+from .raster_calc import SimpleRasterCalc, RasterInfo
 
 
 class OutOfCoreRegressor:
@@ -42,7 +42,6 @@ class OutOfCoreRegressor:
         return np.linalg.solve(a, b)
 
 
-
 def raster_linear_regression(x_path: str, y_path: str) -> List[List[float]]:
     x_ds = gdal.Open(x_path, GA_ReadOnly)
     y_ds = gdal.Open(y_path, GA_ReadOnly)
@@ -66,6 +65,7 @@ def raster_linear_regression(x_path: str, y_path: str) -> List[List[float]]:
 
     return band_weights
 
+
 def raster_linear_regression_full(x_path: str, y_path: str):
     x_ds = gdal.Open(x_path, GA_ReadOnly)
     y_ds = gdal.Open(y_path, GA_ReadOnly)
@@ -84,7 +84,7 @@ def raster_linear_regression_full(x_path: str, y_path: str):
     return band_weights
 
 
-def create_test_file(outFileName, xsize=200, ysize=100, generator=lambda x, y: x*y):
+def create_test_file(outFileName, xsize=200, ysize=100, generator=lambda x, y: x * y):
     driver = gdal.GetDriverByName("GTiff")
     outdata = driver.Create(outFileName, xsize=xsize, ysize=ysize, bands=1, eType=gdal.GDT_Int32)
 
@@ -99,6 +99,7 @@ def test1():
     create_test_file(x_path)
     create_test_file(y_path, generator=lambda x, y: 4 * y * x + 1)
     raster_linear_regression_full(x_path, y_path)
+
 
 def test():
     x_path = "./x.tif"
@@ -123,6 +124,5 @@ def test():
 
     res_ds = open_ds(res_path)
     res_ds.GetRasterBand(1).GetStatistics(1, 1)
-
 
 # test()

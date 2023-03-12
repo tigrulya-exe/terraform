@@ -2,10 +2,10 @@ from math import pi, radians
 
 import numpy as np
 
-from computation import gdal_utils
-from processing_alg.topocorrection.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
-from processing_alg.topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
-from computation.raster_calc import RasterInfo
+from .MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
+from .TopoCorrectionAlgorithm import TopoCorrectionContext
+from ...computation import gdal_utils
+from ...computation.raster_calc import RasterInfo
 
 
 class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):

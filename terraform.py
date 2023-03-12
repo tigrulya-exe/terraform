@@ -30,22 +30,14 @@ __copyright__ = '(C) 2023 by Tigran Manasyan'
 
 __revision__ = '$Format:%H$'
 
+import inspect
 import os
 import sys
-import inspect
 
+from qgis.PyQt.QtWidgets import QMessageBox, QAction
 from qgis.core import (
-    QgsApplication,
-    QgsProject
+    QgsApplication
 )
-from qgis.gui import (
-    QgsOptionsWidgetFactory,
-    QgsOptionsPageWidget
-)
-
-from qgis.PyQt.QtCore import QDir
-from qgis.PyQt.QtWidgets import QMessageBox, QAction, QHBoxLayout
-from qgis.PyQt.QtGui import QIcon
 
 from .terraform_processing_provider import TerraformProcessingProvider
 

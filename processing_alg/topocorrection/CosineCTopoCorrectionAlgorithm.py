@@ -1,8 +1,8 @@
 import numpy as np
-from computation import gdal_utils
-from computation.raster_calc import RasterInfo
 
-from processing_alg.topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
+from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
+from ...computation import gdal_utils
+from ...computation.raster_calc import RasterInfo
 
 
 class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):

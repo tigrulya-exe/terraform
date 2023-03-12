@@ -31,10 +31,8 @@ __copyright__ = '(C) 2023 by Tigran Manasyan'
 __revision__ = '$Format:%H$'
 
 from enum import Enum
-from math import radians
 from typing import Dict, Any
 
-import processing
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.core import (QgsProcessingContext,
                        QgsProcessingFeedback,
@@ -43,22 +41,21 @@ from qgis.core import (QgsProcessingContext,
                        QgsProcessingParameterRasterLayer,
                        QgsProcessingParameterRasterDestination)
 
-from computation.qgis_utils import add_layer_to_project
-from processing_alg.execution_context import QgisExecutionContext
-from processing_alg.terraform_algorithm import TerraformProcessingAlgorithm
-from processing_alg.topocorrection.CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
-from processing_alg.topocorrection.CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
-from processing_alg.topocorrection.CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
-from processing_alg.topocorrection.MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
-from processing_alg.topocorrection.MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
-from processing_alg.topocorrection.PbcTopoCorrectionAlgorithm import PbcTopoCorrectionAlgorithm
-from processing_alg.topocorrection.PbmTopoCorrectionAlgorithm import PbmTopoCorrectionAlgorithm
-from processing_alg.topocorrection.ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
-from processing_alg.topocorrection.ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
-from processing_alg.topocorrection.TeilletRegressionTopoCorrectionAlgorithm import \
-    TeilletRegressionTopoCorrectionAlgorithm
-from processing_alg.topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
-from processing_alg.topocorrection.VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
+from ...computation.qgis_utils import add_layer_to_project
+from ..execution_context import QgisExecutionContext
+from ..terraform_algorithm import TerraformProcessingAlgorithm
+from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
+from .CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
+from .CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
+from .MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
+from .MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
+from .PbcTopoCorrectionAlgorithm import PbcTopoCorrectionAlgorithm
+from .PbmTopoCorrectionAlgorithm import PbmTopoCorrectionAlgorithm
+from .ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
+from .ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
+from .TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
+from .TopoCorrectionAlgorithm import TopoCorrectionContext
+from .VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
 
 
 # from processing.core.ProcessingConfig import ProcessingConfig

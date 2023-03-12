@@ -6,9 +6,9 @@ import numpy_groupies as npg
 from matplotlib import pyplot as plt
 from qgis.core import QgsProcessingFeedback, QgsProcessingParameterNumber
 
-from computation import gdal_utils
-from processing_alg.execution_context import QgisExecutionContext
-from processing_alg.topocorrection_eval.topocorrection_eval_algorithm import TopocorrectionEvaluationAlgorithm
+from ...computation import gdal_utils
+from ..execution_context import QgisExecutionContext
+from .topocorrection_eval_algorithm import TopocorrectionEvaluationAlgorithm
 
 MPLT_MARKERS = "ov^<>1235sp*X"
 MPLT_COLOURS = "bgrcmyk"

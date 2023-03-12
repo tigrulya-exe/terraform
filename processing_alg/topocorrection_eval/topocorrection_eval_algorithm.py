@@ -7,9 +7,9 @@ from qgis.core import (QgsProcessingContext,
                        QgsProcessingFeedback,
                        QgsProcessingParameterRasterLayer)
 
-from computation.qgis_utils import add_layer_to_project
-from processing_alg.execution_context import QgisExecutionContext
-from processing_alg.terraform_algorithm import TerraformProcessingAlgorithm
+from ...computation.qgis_utils import add_layer_to_project
+from ..execution_context import QgisExecutionContext
+from ..terraform_algorithm import TerraformProcessingAlgorithm
 
 
 class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
@@ -110,4 +110,3 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
 
         pre, ext = os.path.splitext(output_file_path)
         return pre + '.png' if ext not in ('.png', '.svg') else output_file_path
-

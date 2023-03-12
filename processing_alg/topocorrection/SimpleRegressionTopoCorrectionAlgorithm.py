@@ -1,5 +1,5 @@
-from processing_alg.topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
-from computation.gdal_utils import raster_linear_regression
+from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
+from ...computation.gdal_utils import raster_linear_regression
 
 
 class SimpleRegressionTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):

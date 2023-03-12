@@ -1,4 +1,4 @@
-from qgis._core import QgsProcessingContext, QgsProcessingUtils, QgsProject
+from qgis.core import QgsProcessingContext, QgsProcessingUtils, QgsProject
 
 
 def add_layer_to_project(context, layer_path, name="out"):

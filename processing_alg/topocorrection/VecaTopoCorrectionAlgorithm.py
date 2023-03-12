@@ -1,9 +1,9 @@
 import numpy as np
 
-from computation import gdal_utils
-from computation.raster_calc import RasterInfo
-from processing_alg.topocorrection.SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
-from processing_alg.topocorrection.TopoCorrectionAlgorithm import TopoCorrectionContext
+from .SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
+from .TopoCorrectionAlgorithm import TopoCorrectionContext
+from ...computation import gdal_utils
+from ...computation.raster_calc import RasterInfo
 
 
 class VecaTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):

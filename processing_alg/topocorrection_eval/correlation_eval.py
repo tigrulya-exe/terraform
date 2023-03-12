@@ -6,10 +6,10 @@ import numpy as np
 from qgis.core import QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingParameterBoolean, \
     QgsProcessingParameterString, QgsProcessingParameterEnum
 
-from computation import gdal_utils
-from computation.plot_utils import draw_subplots, norm_from_scale
-from processing_alg.execution_context import QgisExecutionContext
-from processing_alg.topocorrection_eval.topocorrection_eval_algorithm import TopocorrectionEvaluationAlgorithm
+from ...computation import gdal_utils
+from ...computation.plot_utils import draw_subplots, norm_from_scale
+from ..execution_context import QgisExecutionContext
+from .topocorrection_eval_algorithm import TopocorrectionEvaluationAlgorithm
 
 
 def plot_histograms(
