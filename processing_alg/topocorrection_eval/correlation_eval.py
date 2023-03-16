@@ -1,20 +1,22 @@
+import os
 from enum import Enum
 from typing import Any, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
-from qgis.core import QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingParameterBoolean, \
+from qgis.core import QgsProcessingParameterRasterLayer, \
+    QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingParameterBoolean, \
     QgsProcessingParameterString, QgsProcessingParameterEnum
 
+from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
+from ..execution_context import QgisExecutionContext
 from ...computation import gdal_utils
 from ...computation.plot_utils import draw_subplots, norm_from_scale
-from ..execution_context import QgisExecutionContext
-from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
+from ...computation.qgis_utils import check_compatible, set_layers_to_load
 
 
 def plot_histograms(
         histograms,
-        luminance_bytes,
         cmap="seismic",
         norm_method="linear",
         plot_regression_line=True,
@@ -22,7 +24,7 @@ def plot_histograms(
         output_file_path=None,
         show_plot=True):
     def subplot_histogram(ax, idx):
-        histogram, xmin, xmax, ymin, ymax, intercept, slope = histograms[idx]
+        histogram, luminance_bytes, xmin, xmax, ymin, ymax, intercept, slope = histograms[idx]
 
         ax.set_title(f'Band №{idx + 1}')
         img = ax.imshow(
@@ -57,44 +59,59 @@ def build_densities(
         bins=100,
         cmap="seismic",
         norm_method="linear",
+        group_ids=None,
         plot_regression_line=True,
         output_file_path=None,
         show_plot=True):
     # luminance = cos(i)
     x_min, x_max = 0, 1
 
-    histograms = []
-    for band_idx in range(img_ds.RasterCount):
-        band = img_ds.GetRasterBand(band_idx + 1)
-        band_bytes = band.ReadAsArray().ravel()
-        img_min, img_max, *_ = band.GetStatistics(True, True)
-        histogram, _, _ = np.histogram2d(
-            luminance_bytes,
-            band_bytes,
-            bins=bins,
-            range=[[x_min, x_max], [img_min, img_max]]
-        )
+    groups = np.unique(group_ids)
+    groups = groups[~np.isnan(groups)]
 
-        intercept, slope = np.polynomial.polynomial.polyfit(luminance_bytes, band_bytes, 1)
-        histograms.append((histogram.T, x_min, x_max, img_min, img_max, intercept, slope))
+    output_paths = []
+    # memory/speed tradeoff
+    for group in groups:
+        histograms = []
+        for band_idx in range(img_ds.RasterCount):
+            band = img_ds.GetRasterBand(band_idx + 1)
+            band_bytes = band.ReadAsArray().ravel()[group_ids == group]
+            group_luminance_bytes = luminance_bytes[group_ids == group]
 
-    plot_histograms(
-        histograms,
-        luminance_bytes,
-        cmap,
-        norm_method=norm_method,
-        output_file_path=output_file_path,
-        plot_regression_line=plot_regression_line,
-        show_plot=show_plot)
+            # todo change to band.minmax()
+            img_min, img_max, *_ = band.GetStatistics(True, True)
+            histogram, _, _ = np.histogram2d(
+                group_luminance_bytes,
+                band_bytes,
+                bins=bins,
+                range=[[x_min, x_max], [img_min, img_max]]
+            )
+
+            intercept, slope = np.polynomial.polynomial.polyfit(group_luminance_bytes, band_bytes, 1)
+            histograms.append((histogram.T, group_luminance_bytes, x_min, x_max, img_min, img_max, intercept, slope))
+
+        if len(groups) == 1:
+            group_out_path = output_file_path
+        else:
+            path_prefix, path_ext = os.path.splitext(output_file_path)
+            group_out_path = f"{path_prefix}_{group}{path_ext}"
+            output_paths.append(group_out_path)
+
+        plot_histograms(
+            histograms,
+            cmap,
+            norm_method=norm_method,
+            output_file_path=group_out_path,
+            plot_regression_line=plot_regression_line,
+            show_plot=show_plot)
+
+    return output_paths
 
 
 class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
     class ScaleMethod(str, Enum):
         LINEAR = 'linear'
-        # LOG = 'log'
         SYMMETRIC_LOG = 'symlog'
-        # ASINH = 'asinh'
-        # LOGIT = 'logit'
 
     def initAlgorithm(self, config=None):
         super().initAlgorithm(config)
@@ -153,6 +170,14 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
             )
         )
 
+        self.addParameter(
+            QgsProcessingParameterRasterLayer(
+                'GROUP_IDS',
+                self.tr('Raster layer with groups ids for input raster'),
+                optional=True
+            )
+        )
+
     def createInstance(self):
         return CorrelationEvaluationAlgorithm()
 
@@ -181,6 +206,10 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
                        "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
                        "the same CRS, extent and spatial resolution.")
 
+    def need_to_show_result(self, execution_ctx: QgisExecutionContext):
+        # In this algorithm we manually set output file(s)
+        return False
+
     def processAlgorithmInternal(
             self,
             parameters: Dict[str, Any],
@@ -197,15 +226,27 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
         luminance_bytes = gdal_utils.read_band_as_array(luminance_path).ravel()
         img_ds = gdal_utils.open_img(context.input_layer.source())
 
-        build_densities(
+        group_ids_layer = self.parameterAsRasterLayer(parameters, 'GROUP_IDS', context.qgis_context)
+        if group_ids_layer is not None:
+            check_compatible(group_ids_layer, context.input_layer)
+            # todo read as dtype=int
+            group_ids_bytes = gdal_utils.read_band_as_array(luminance_path).ravel()
+        else:
+            group_ids_bytes = np.full_like(luminance_bytes, 1, dtype=int)
+
+        output_paths = build_densities(
             luminance_bytes,
             img_ds,
             bins=self.parameterAsInt(parameters, 'BIN_COUNT', context.qgis_context),
             cmap=self.parameterAsString(parameters, 'PLOT_COLORMAP', context.qgis_context),
             plot_regression_line=self.parameterAsBoolean(parameters, 'DRAW_REGRESSION_LINE', context.qgis_context),
             norm_method=self.parameterAsEnumString(parameters, 'PIXEL_SCALE_METHOD', context.qgis_context),
+            group_ids=group_ids_bytes,
             output_file_path=context.output_file_path,
             show_plot=False
         )
+
+        paths_with_names = [(path, os.path.basename(path)) for path in output_paths]
+        set_layers_to_load(context.qgis_context, paths_with_names)
 
         return {}

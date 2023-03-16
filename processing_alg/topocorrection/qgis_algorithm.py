@@ -55,7 +55,7 @@ from .TopoCorrectionAlgorithm import TopoCorrectionContext
 from .VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
-from ...computation.qgis_utils import add_layer_to_project
+from ...computation.qgis_utils import add_layer_to_load
 
 
 # from processing.core.ProcessingConfig import ProcessingConfig
@@ -273,4 +273,4 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
 
     def _add_layer_to_project(self, context, layer_path, show_label: AuxiliaryLayers, name="out"):
         if show_label.value in self.show_tmp_layers:
-            add_layer_to_project(context, layer_path, name)
+            add_layer_to_load(context, layer_path, name)

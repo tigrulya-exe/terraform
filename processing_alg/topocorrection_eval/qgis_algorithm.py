@@ -10,7 +10,7 @@ from qgis.core import (QgsProcessingContext,
 
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
-from ...computation.qgis_utils import add_layer_to_project
+from ...computation.qgis_utils import add_layer_to_load
 
 
 class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
@@ -90,8 +90,8 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
 
         result = self.processAlgorithmInternal(parameters, execution_ctx, feedback)
 
-        if self.parameterAsBoolean(parameters, 'OPEN_OUT_FILE', context) and output_file_path.endswith('png'):
-            add_layer_to_project(context, output_file_path, f"Result_{self.name()}")
+        if self.need_to_show_result(context):
+            add_layer_to_load(context, output_file_path, f"Result_{self.name()}")
 
         return result
 
@@ -102,6 +102,10 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
             feedback: QgsProcessingFeedback
     ) -> Dict[str, Any]:
         pass
+
+    def need_to_show_result(self, execution_ctx: QgisExecutionContext):
+        return self.parameterAsBoolean(execution_ctx.qgis_params, 'OPEN_OUT_FILE', execution_ctx.qgis_context) \
+               and execution_ctx.output_file_path.endswith('png')
 
     def _get_valid_outpath(self, parameters: Dict[str, Any], context: QgsProcessingContext) -> str:
         output_file_path = self.parameterAsFileOutput(parameters, 'IMG_PLOT_OUT_PATH', context)
