@@ -22,7 +22,8 @@ class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
         self.h0 = (pi + 2 * radians(ctx.solar_zenith_angle)) / (2 * pi)
         self.h = self.raster_calculate(
             calc_func=calculate_h,
-            raster_infos=[RasterInfo("slope", ctx.slope_rad_path, 1)]
+            raster_infos=[RasterInfo("slope", ctx.slope_rad_path, 1)],
+            out_file_postfix="pbc_h"
         )
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
@@ -47,7 +48,8 @@ class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
                 RasterInfo("h", self.h, 1),
-            ]
+            ],
+            out_file_postfix=band_idx
         )
 
     def calculate_c(self, ctx: TopoCorrectionContext, band_idx: int) -> float:

@@ -151,32 +151,29 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
             )
         )
 
-        self.addParameter(
-            QgsProcessingParameterString(
-                'PLOT_COLORMAP',
-                self.tr('Plot colormap'),
-                defaultValue='coolwarm'
-            )
+        plot_colormap_param = QgsProcessingParameterString(
+            'PLOT_COLORMAP',
+            self.tr('Plot colormap'),
+            defaultValue='coolwarm'
         )
+        self._additional_param(plot_colormap_param)
 
-        self.addParameter(
-            QgsProcessingParameterEnum(
-                'PIXEL_SCALE_METHOD',
-                self.tr('The normalization method used to scale pixel values to the [0, 1] range of colormap'),
-                options=[e for e in self.ScaleMethod],
-                allowMultiple=False,
-                defaultValue='linear',
-                usesStaticStrings=True
-            )
+        pixel_scale_param = QgsProcessingParameterEnum(
+            'PIXEL_SCALE_METHOD',
+            self.tr('The normalization method used to scale pixel values to the [0, 1] range of colormap'),
+            options=[e for e in self.ScaleMethod],
+            allowMultiple=False,
+            defaultValue='linear',
+            usesStaticStrings=True
         )
+        self._additional_param(pixel_scale_param)
 
-        self.addParameter(
-            QgsProcessingParameterRasterLayer(
-                'GROUP_IDS',
-                self.tr('Raster layer with groups ids for input raster'),
-                optional=True
-            )
+        classification_map_param = QgsProcessingParameterRasterLayer(
+            'CLASSIFICATION_MAP',
+            self.tr('Raster layer with classification label ids for input raster'),
+            optional=True
         )
+        self._additional_param(classification_map_param)
 
     def createInstance(self):
         return CorrelationEvaluationAlgorithm()
@@ -226,7 +223,7 @@ class CorrelationEvaluationAlgorithm(TopocorrectionEvaluationAlgorithm):
         luminance_bytes = gdal_utils.read_band_as_array(luminance_path).ravel()
         img_ds = gdal_utils.open_img(context.input_layer.source())
 
-        group_ids_layer = self.parameterAsRasterLayer(parameters, 'GROUP_IDS', context.qgis_context)
+        group_ids_layer = self.parameterAsRasterLayer(parameters, 'CLASSIFICATION_MAP', context.qgis_context)
         if group_ids_layer is not None:
             check_compatible(group_ids_layer, context.input_layer)
             # todo read as dtype=int

@@ -12,6 +12,7 @@ class VecaTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
         return "VECA"
 
     def init(self, ctx: TopoCorrectionContext):
+        super().init(ctx)
         self.raster_means = gdal_utils.compute_band_means(ctx.input_layer.source())
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
@@ -36,5 +37,6 @@ class VecaTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
-            ]
+            ],
+            out_file_postfix=band_idx
         )

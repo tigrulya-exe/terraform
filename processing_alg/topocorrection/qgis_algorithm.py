@@ -34,6 +34,7 @@ from enum import Enum
 from typing import Dict, Any
 
 from qgis.PyQt.QtCore import QCoreApplication
+from qgis._core import QgsProcessingParameterBoolean
 from qgis.core import (QgsProcessingContext,
                        QgsProcessingFeedback,
                        QgsProcessingParameterEnum,
@@ -170,16 +171,6 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         )
 
         self.addParameter(
-            QgsProcessingParameterEnum(
-                'SHOW_AUXILIARY_LAYERS',
-                self.tr('Auxiliary generated layers to open after running algorithm'),
-                options=[e.name for e in self.AuxiliaryLayers],
-                allowMultiple=True,
-                optional=True
-            )
-        )
-
-        self.addParameter(
             QgsProcessingParameterNumber(
                 'SZA',
                 self.tr('Solar zenith angle (in degrees)'),
@@ -203,6 +194,31 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
                 self.tr('Result output')
             )
         )
+
+        show_layers_param = QgsProcessingParameterEnum(
+            'SHOW_AUXILIARY_LAYERS',
+            self.tr('Auxiliary generated layers to open after running algorithm'),
+            options=[e.name for e in self.AuxiliaryLayers],
+            allowMultiple=True,
+            optional=True
+        )
+        self._additional_param(show_layers_param)
+
+        parallel_param = QgsProcessingParameterBoolean(
+            'RUN_PARALLEL',
+            self.tr('Run processing in parallel'),
+            defaultValue=False,
+            optional=True
+        )
+        self._additional_param(parallel_param)
+
+        task_timeout_param = QgsProcessingParameterNumber(
+            'TASK_TIMEOUT',
+            self.tr('Parallel task timeout in ms'),
+            defaultValue=10000,
+            type=QgsProcessingParameterNumber.Integer
+        )
+        self._additional_param(task_timeout_param)
 
     def processAlgorithm(
             self,
@@ -240,6 +256,8 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         exec_ctx = TopoCorrectionQgisExecutionContext()
 
         self.show_tmp_layers = self.parameterAsEnums(parameters, 'SHOW_AUXILIARY_LAYERS', context)
+        run_parallel = self.parameterAsBoolean(parameters, 'RUN_PARALLEL', context)
+        task_timeout = self.parameterAsInt(parameters, 'TASK_TIMEOUT', context)
 
         slope_rad_path = exec_ctx.calculate_slope(in_radians=True)
         if feedback.isCanceled():
@@ -263,7 +281,9 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
             aspect_path=aspect_path,
             luminance_path=luminance_path,
             solar_zenith_angle=solar_zenith_angle,
-            solar_azimuth=solar_azimuth
+            solar_azimuth=solar_azimuth,
+            run_parallel=run_parallel,
+            task_timeout=task_timeout
         )
 
         tc_algorithm_name = self.parameterAsEnumString(parameters, 'TOPO_CORRECTION_ALGORITHM', context)

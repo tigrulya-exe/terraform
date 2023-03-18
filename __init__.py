@@ -35,7 +35,7 @@ def classFactory(iface):  # pylint: disable=invalid-name
     :type iface: QgsInterface
     """
     #
-    from .meta import ensure_import
+    from .dependencies import ensure_import
     ensure_import("numpy_groupies")
 
     from .terraform import TerraformTopoCorrectionPlugin

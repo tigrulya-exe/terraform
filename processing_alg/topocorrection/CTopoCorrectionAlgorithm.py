@@ -30,7 +30,8 @@ class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
-            ]
+            ],
+            out_file_postfix=band_idx
         )
 
     def calculate_c(self, ctx: TopoCorrectionContext, band_idx: int) -> float:

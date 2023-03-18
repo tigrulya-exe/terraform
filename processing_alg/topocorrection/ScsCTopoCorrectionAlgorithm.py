@@ -32,5 +32,6 @@ class ScsCTopoCorrectionAlgorithm(CTopoCorrectionAlgorithm):
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
                 RasterInfo("slope", ctx.slope_rad_path, 1)
-            ]
+            ],
+            out_file_postfix=band_idx
         )

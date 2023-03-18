@@ -11,6 +11,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         return "Minnaert"
 
     def init(self, ctx: TopoCorrectionContext):
+        super().init(ctx)
         self.x_path = self.calculate_x(ctx)
 
     def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
@@ -33,7 +34,8 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1)
-            ]
+            ],
+            out_file_postfix=band_idx
         )
 
     def calculate_k(self, ctx: TopoCorrectionContext, band_idx: int):
@@ -58,7 +60,8 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             raster_infos=[
                 RasterInfo("luminance", ctx.luminance_path, 1),
                 RasterInfo("slope", ctx.slope_rad_path, 1)
-            ]
+            ],
+            out_file_postfix="minnaert_x"
         )
 
     def calculate_y(self, ctx: TopoCorrectionContext, band_idx: int) -> str:
@@ -77,5 +80,6 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
                 RasterInfo("slope", ctx.slope_rad_path, 1)
-            ]
+            ],
+            out_file_postfix="minnaert_y"
         )

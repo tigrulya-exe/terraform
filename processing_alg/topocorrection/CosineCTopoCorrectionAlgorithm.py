@@ -11,6 +11,7 @@ class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         return "COSINE-C"
 
     def init(self, ctx: TopoCorrectionContext):
+        super().init(ctx)
         # todo add validation
         self.luminance_mean = gdal_utils.compute_band_means(ctx.luminance_path)[0]
 
@@ -31,5 +32,6 @@ class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
-            ]
+            ],
+            out_file_postfix=band_idx
         )

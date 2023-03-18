@@ -1,0 +1,1 @@
+xcopy /s/e/y/i "%~dp0\..\" "D:\Diploma\QGis\apps\qgis\python\plugins\Terraform"
