@@ -78,6 +78,9 @@ def raster_partial_linear_regression(x_path: str, y_path: str) -> List[List[floa
         weights = regressor.train()
         band_weights.append(weights)
 
+    x_ds = None
+    y_ds = None
+
     return band_weights
 
 
@@ -98,6 +101,7 @@ def compute_band_means(input_path: str) -> List[float]:
 
         band_means.append(pixel_sum / (band.XSize * band.YSize))
 
+    ds = None
     return band_means
 
 
@@ -111,3 +115,20 @@ def read_hline(band: Band, y_offset: int):
                 buf_ysize=1
             )
 
+
+def copy_band_descriptions(source_path, destination_path):
+    source_ds = gdal.Open(source_path, gdal.GA_ReadOnly)
+    destination_ds = gdal.Open(destination_path, gdal.GA_Update)
+
+    if source_ds.RasterCount != destination_ds.RasterCount:
+        raise ValueError(
+            f"{source_path} and {destination_path} should have equal number of bands for metadata transfer"
+        )
+
+    for band_idx in range(1, source_ds.RasterCount + 1):
+        band_description = source_ds.GetRasterBand(band_idx).GetDescription()
+        destination_ds.GetRasterBand(band_idx).SetDescription(band_description)
+
+    # de-reference the datasets, which triggers gdal to save
+    source_ds = None
+    destination_ds = None

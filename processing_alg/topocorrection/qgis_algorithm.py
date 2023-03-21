@@ -34,13 +34,13 @@ from enum import Enum
 from typing import Dict, Any
 
 from qgis.PyQt.QtCore import QCoreApplication
-from qgis._core import QgsProcessingParameterBoolean
 from qgis.core import (QgsProcessingContext,
                        QgsProcessingFeedback,
                        QgsProcessingParameterEnum,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterRasterLayer,
                        QgsProcessingParameterRasterDestination)
+from qgis.core import QgsProcessingParameterBoolean
 
 from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from .CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
@@ -53,6 +53,7 @@ from .ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
 from .ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
 from .TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
 from .TopoCorrectionAlgorithm import TopoCorrectionContext
+from .TopoCorrectionPostProcessor import TopoCorrectionPostProcessor
 from .VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
@@ -289,7 +290,14 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         tc_algorithm_name = self.parameterAsEnumString(parameters, 'TOPO_CORRECTION_ALGORITHM', context)
 
         # add validation
-        return self.algorithms[tc_algorithm_name].process(topo_context)
+        results = self.algorithms[tc_algorithm_name].process(topo_context)
+
+        # todo: change band names even without load on completion
+        if context.willLoadLayerOnCompletion(results['OUTPUT']):
+            context.layerToLoadOnCompletionDetails(
+                results['OUTPUT']).setPostProcessor(TopoCorrectionPostProcessor.create(input_layer))
+
+        return results
 
     def _add_layer_to_project(self, context, layer_path, show_label: AuxiliaryLayers, name="out"):
         if show_label.value in self.show_tmp_layers:

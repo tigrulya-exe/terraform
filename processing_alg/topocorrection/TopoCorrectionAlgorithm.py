@@ -25,7 +25,7 @@ class TopoCorrectionContext:
             solar_zenith_angle: float,
             solar_azimuth: float,
             run_parallel: bool,
-            task_timeout: int=10000):
+            task_timeout: int = 10000):
         self.qgis_context = qgis_context
         self.qgis_params = qgis_params
         self.qgis_feedback = qgis_feedback
