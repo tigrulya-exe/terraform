@@ -30,6 +30,9 @@ class QgisExecutionContext:
         self.solar_azimuth_degrees = solar_azimuth_degrees
         self.output_file_path = output_file_path
 
+    def is_canceled(self):
+        return self.qgis_feedback.isCanceled()
+
     @functools.cache
     def calculate_slope(self, in_radians=True) -> str:
         results = processing.run(

@@ -53,21 +53,7 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
             )
         )
 
-        self.addParameter(
-            QgsProcessingParameterFileDestination(
-                'IMG_PLOT_OUT_PATH',
-                self.tr('Output path of rose diagram'),
-                fileFilter="(*.png *.svg)"
-            )
-        )
-
-        self.addParameter(
-            QgsProcessingParameterBoolean(
-                'OPEN_OUT_FILE',
-                self.tr('Open output file after running algorithm'),
-                defaultValue=True
-            )
-        )
+        self.add_output_param()
 
     def processAlgorithm(
             self,
@@ -90,10 +76,29 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
 
         result = self.processAlgorithmInternal(parameters, execution_ctx, feedback)
 
-        if self.need_to_show_result(context):
-            add_layer_to_load(context, output_file_path, f"Result_{self.name()}")
+        if self.need_to_show_result(execution_ctx):
+            self.add_layers_to_project(execution_ctx, result)
 
         return result
+
+    def add_output_param(self):
+        self.addParameter(
+            QgsProcessingParameterFileDestination(
+                'IMG_PLOT_OUT_PATH',
+                self.tr('Output path'),
+                fileFilter="(*.png *.svg)"
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterBoolean(
+                'OPEN_OUT_FILE',
+                self.tr('Open output file after running algorithm'),
+                defaultValue=True
+            )
+        )
+
+        return 'IMG_PLOT_OUT_PATH'
 
     def processAlgorithmInternal(
             self,
@@ -102,6 +107,9 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
             feedback: QgsProcessingFeedback
     ) -> Dict[str, Any]:
         pass
+
+    def add_layers_to_project(self, ctx: QgisExecutionContext, result):
+        add_layer_to_load(ctx.qgis_context, ctx.output_file_path, f"Result_{self.name()}")
 
     def need_to_show_result(self, execution_ctx: QgisExecutionContext):
         return self.parameterAsBoolean(execution_ctx.qgis_params, 'OPEN_OUT_FILE', execution_ctx.qgis_context) \

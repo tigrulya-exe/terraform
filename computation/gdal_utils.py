@@ -1,11 +1,12 @@
 from typing import List
 
+import numpy as np
 from osgeo import gdal
 from osgeo.gdal import Band
 from osgeo.gdalconst import GA_ReadOnly
-import numpy as np
 
 gdal.UseExceptions()
+
 
 class OutOfCoreRegressor:
     def __init__(self):
@@ -50,7 +51,7 @@ def read_band_as_array(path: str, band_idx: int = 1):
     return ds.GetRasterBand(band_idx).ReadAsArray()
 
 
-def raster_linear_regression(x_path: str, y_path: str, x_band:int = 1, y_band: int = 1):
+def raster_linear_regression(x_path: str, y_path: str, x_band: int = 1, y_band: int = 1):
     x_flat = read_band_as_array(x_path, x_band).ravel()
     y_flat = read_band_as_array(y_path, y_band).ravel()
 
@@ -107,13 +108,13 @@ def compute_band_means(input_path: str) -> List[float]:
 
 def read_hline(band: Band, y_offset: int):
     return band.ReadAsArray(
-                xoff=0,
-                yoff=y_offset,
-                win_xsize=band.XSize,
-                win_ysize=1,
-                buf_xsize=band.XSize,
-                buf_ysize=1
-            )
+        xoff=0,
+        yoff=y_offset,
+        win_xsize=band.XSize,
+        win_ysize=1,
+        buf_xsize=band.XSize,
+        buf_ysize=1
+    )
 
 
 def copy_band_descriptions(source_path, destination_path):
