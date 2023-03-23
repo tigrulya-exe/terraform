@@ -35,7 +35,7 @@ from qgis.core import QgsProcessingProvider
 from .processing_alg.topocorrection_eval.plot_correlation_eval import PlotCorrelationEvaluationProcessingAlgorithm
 from .processing_alg.topocorrection.qgis_algorithm import TerraformTopoCorrectionAlgorithm
 from .processing_alg.topocorrection_eval.correlation_eval import CorrelationEvaluationProcessingAlgorithm
-from .processing_alg.topocorrection_eval.rose_diagram_eval import RoseDiagramEvaluationAlgorithm
+from .processing_alg.topocorrection_eval.rose_diagram_eval import RoseDiagramEvaluationProcessingAlgorithm
 
 
 class TerraformProcessingProvider(QgsProcessingProvider):
@@ -60,7 +60,7 @@ class TerraformProcessingProvider(QgsProcessingProvider):
         self.addAlgorithm(TerraformTopoCorrectionAlgorithm())
         self.addAlgorithm(CorrelationEvaluationProcessingAlgorithm())
         self.addAlgorithm(PlotCorrelationEvaluationProcessingAlgorithm())
-        self.addAlgorithm(RoseDiagramEvaluationAlgorithm())
+        self.addAlgorithm(RoseDiagramEvaluationProcessingAlgorithm())
 
     def id(self):
         """

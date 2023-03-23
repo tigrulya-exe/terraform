@@ -3,14 +3,14 @@ from typing import Dict, Any
 
 from qgis.PyQt.QtCore import QCoreApplication
 from qgis.core import (QgsProcessingContext,
-                       QgsProcessingParameterFileDestination,
+                       QgsProcessingParameterFolderDestination,
                        QgsProcessingParameterBoolean,
                        QgsProcessingFeedback,
                        QgsProcessingParameterRasterLayer)
 
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
-from ...computation.qgis_utils import add_layer_to_load
+from ...computation.qgis_utils import set_layers_to_load
 
 
 class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
@@ -63,7 +63,7 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
     ) -> Dict[str, Any]:
         input_layer = self.parameterAsRasterLayer(parameters, 'INPUT', context)
         dem_layer = self.parameterAsRasterLayer(parameters, 'DEM', context)
-        output_file_path = self._get_valid_outpath(parameters, context)
+        output_file_path = self._get_output_dir(parameters, context)
 
         execution_ctx = QgisExecutionContext(
             context,
@@ -76,29 +76,35 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
 
         result = self.processAlgorithmInternal(parameters, execution_ctx, feedback)
 
-        if self.need_to_show_result(execution_ctx):
-            self.add_layers_to_project(execution_ctx, result)
+        self.add_layers_to_project(execution_ctx, result)
 
-        return result
+        return {
+            "OUT": result
+        }
 
     def add_output_param(self):
         self.addParameter(
-            QgsProcessingParameterFileDestination(
-                'IMG_PLOT_OUT_PATH',
-                self.tr('Output path'),
-                fileFilter="(*.png *.svg)"
+            QgsProcessingParameterFolderDestination(
+                'OUTPUT_DIR',
+                self.tr('Output directory'),
+                createByDefault=True
             )
         )
 
         self.addParameter(
             QgsProcessingParameterBoolean(
                 'OPEN_OUT_FILE',
-                self.tr('Open output file after running algorithm'),
+                self.tr('Open generated files in the output directory after running algorithm'),
                 defaultValue=True
             )
         )
 
-        return 'IMG_PLOT_OUT_PATH'
+        return 'OUTPUT_DIR'
+
+    def add_layers_to_project(self, ctx: QgisExecutionContext, results):
+        need_open = self.parameterAsBoolean(ctx.qgis_params, 'OPEN_OUT_FILE', ctx.qgis_context)
+        if need_open:
+            set_layers_to_load(ctx.qgis_context, results)
 
     def processAlgorithmInternal(
             self,
@@ -108,15 +114,8 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
     ) -> Dict[str, Any]:
         pass
 
-    def add_layers_to_project(self, ctx: QgisExecutionContext, result):
-        add_layer_to_load(ctx.qgis_context, ctx.output_file_path, f"Result_{self.name()}")
-
-    def need_to_show_result(self, execution_ctx: QgisExecutionContext):
-        return self.parameterAsBoolean(execution_ctx.qgis_params, 'OPEN_OUT_FILE', execution_ctx.qgis_context) \
-               and execution_ctx.output_file_path.endswith('png')
-
-    def _get_valid_outpath(self, parameters: Dict[str, Any], context: QgsProcessingContext) -> str:
-        output_file_path = self.parameterAsFileOutput(parameters, 'IMG_PLOT_OUT_PATH', context)
-
-        pre, ext = os.path.splitext(output_file_path)
-        return pre + '.png' if ext not in ('.png', '.svg') else output_file_path
+    def _get_output_dir(self, qgis_params, qgis_context):
+        output_directory = self.parameterAsString(qgis_params, 'OUTPUT_DIR', qgis_context)
+        if not os.path.exists(output_directory):
+            os.makedirs(output_directory)
+        return output_directory

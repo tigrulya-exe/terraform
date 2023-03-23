@@ -41,7 +41,8 @@ class PlotPerFileMergeStrategy(PerFileMergeStrategy):
     def save_result(self, subplot_info, filename):
         plot_path = os.path.join(self.output_directory, filename)
         self.draw_plot(subplot_info)
-        plt.savefig(plot_path)
+        plt.tight_layout()
+        plt.savefig(plot_path, bbox_inches="tight")
 
     def draw_plot(self, plot_info):
         pass
@@ -72,12 +73,17 @@ class SubplotMergeStrategy(MergeStrategy):
 
             self.draw_subplot(subplot_infos[idx], ax, idx)
 
+        self.after_plot(fig, axes)
+
         plt.tight_layout()
         if self.output_file_path is not None:
-            plt.savefig(self.output_file_path)
+            plt.savefig(self.output_file_path, bbox_inches="tight")
 
         # todo tmp
         return [self.output_file_path]
+
+    def after_plot(self, fig, axes):
+        pass
 
     def draw_subplot(self, subplot_info, ax, idx):
         pass

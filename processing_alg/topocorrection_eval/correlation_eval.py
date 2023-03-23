@@ -4,8 +4,6 @@ from typing import Any, Dict
 import numpy as np
 from osgeo import gdal, gdal_array
 from osgeo_utils.auxiliary.util import GetOutputDriverFor
-from qgis._core import QgsProcessingParameterBoolean
-from qgis.core import QgsProcessingParameterFolderDestination
 from qgis.core import QgsProcessingParameterRasterLayer, \
     QgsProcessingFeedback, QgsProcessingParameterNumber
 
@@ -23,12 +21,14 @@ class CorrelationNodeInfo:
             name,
             x_bytes,
             img_stats,
-            fit_stats=None):
+            fit_stats=None,
+            group_idx=None):
         self.histogram = histogram
         self.name = name
         self.x_bytes = x_bytes
         self.img_stats = img_stats
         self.fit_stats = fit_stats
+        self.group_idx = group_idx
 
 
 class CorrelationPerFileMergeStrategy(PerFileMergeStrategy):
@@ -157,25 +157,6 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
         # In this algorithm we manually set output file(s)
         return False
 
-    def add_output_param(self):
-        self.addParameter(
-            QgsProcessingParameterFolderDestination(
-                'OUTPUT_DIR',
-                self.tr('Output directory'),
-                createByDefault=True
-            )
-        )
-
-        self.addParameter(
-            QgsProcessingParameterBoolean(
-                'OPEN_OUT_FILE',
-                self.tr('Open generated files in the output directory after running algorithm'),
-                defaultValue=True
-            )
-        )
-
-        return 'OUTPUT_DIR'
-
     def add_layers_to_project(self, ctx: QgisExecutionContext, results):
         need_open = self.parameterAsBoolean(ctx.qgis_params, 'OPEN_OUT_FILE', ctx.qgis_context)
         if need_open:
@@ -201,21 +182,14 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
         self.add_layers_to_project(context, paths_with_names)
         return {}
 
-    def get_output_dir(self, ctx: QgisExecutionContext):
-        output_directory = self.parameterAsString(ctx.qgis_params, 'OUTPUT_DIR', ctx.qgis_context)
-        if not os.path.exists(output_directory):
-            os.makedirs(output_directory)
-        return output_directory
-
     def compute_correlation(self, ctx: QgisExecutionContext, luminance_path, group_ids_path):
         bins = self.parameterAsInt(ctx.qgis_params, 'BIN_COUNT', ctx.qgis_context)
-        output_directory = self.get_output_dir(ctx)
 
         def generate_file_name(node: CorrelationNodeInfo):
-            return f"correlation_{node.name}.tif"
+            return f"correlation_{node.group_idx}_{node.name}.tif"
 
         merge_strategy = CorrelationPerFileMergeStrategy(
-            output_directory,
+            ctx.output_file_path,
             generate_file_name
         )
 

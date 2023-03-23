@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from qgis.core import QgsProcessingParameterBoolean, \
     QgsProcessingParameterString, QgsProcessingParameterEnum
 
+from .OutputFormatMixin import OutputFormatMixin
 from .correlation_eval import CorrelationEvaluationProcessingAlgorithm, CorrelationEvaluationAlgorithm, \
     CorrelationNodeInfo
 from .eval import SubplotMergeStrategy, PlotPerFileMergeStrategy
@@ -92,14 +93,10 @@ class CorrelationPlotPerFileMergeStrategy(PlotPerFileMergeStrategy):
         )
 
 
-class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessingAlgorithm):
+class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessingAlgorithm, OutputFormatMixin):
     class ScaleMethod(str, Enum):
         LINEAR = 'linear'
         SYMMETRIC_LOG = 'symlog'
-
-    class OutputFormat(str, Enum):
-        PNG = 'png'
-        SVG = 'svg'
 
     def initAlgorithm(self, config=None):
         super().initAlgorithm(config)
@@ -137,14 +134,7 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
         )
         self._additional_param(pixel_scale_param)
 
-        pixel_scale_param = QgsProcessingParameterEnum(
-            'OUTPUT_FORMAT',
-            self.tr('Output format'),
-            options=[f for f in self.OutputFormat],
-            allowMultiple=False,
-            defaultValue='png',
-            usesStaticStrings=True
-        )
+        pixel_scale_param = self.output_format_param()
         self._additional_param(pixel_scale_param)
 
     def createInstance(self):
@@ -172,24 +162,22 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
             'for additional info about algorithm arguments.')
 
     def add_layers_to_project(self, ctx: QgisExecutionContext, results):
-        output_format = self.parameterAsEnumString(ctx.qgis_params, 'OUTPUT_FORMAT', ctx.qgis_context)
-
-        if self.OutputFormat.SVG != output_format:
+        if self.format_param_supported_by_qgis(ctx):
             super().add_layers_to_project(ctx, results)
 
     def compute_correlation(self, ctx: QgisExecutionContext, luminance_path, group_ids_path):
 
-        output_directory = self.get_output_dir(ctx)
+        output_directory = ctx.output_file_path
         bins = self.parameterAsInt(ctx.qgis_params, 'BIN_COUNT', ctx.qgis_context)
         norm_method = self.parameterAsEnumString(ctx.qgis_params, 'PIXEL_SCALE_METHOD', ctx.qgis_context)
         cmap = self.parameterAsString(ctx.qgis_params, 'PLOT_COLORMAP', ctx.qgis_context)
         plot_regression_line = self.parameterAsBoolean(ctx.qgis_params, 'DRAW_REGRESSION_LINE', ctx.qgis_context)
 
         per_file = self.parameterAsBoolean(ctx.qgis_params, 'DRAW_PER_FILE', ctx.qgis_context)
-        output_format = self.parameterAsEnumString(ctx.qgis_params, 'OUTPUT_FORMAT', ctx.qgis_context)
+        output_format = self.get_output_format_param(ctx)
 
         def generate_file_name(node: CorrelationNodeInfo):
-            return f"correlation_{node.name}.{output_format}"
+            return f"correlation_{node.group_idx}_{node.name}.{output_format}"
 
         if per_file:
             merge_strategy = CorrelationPlotPerFileMergeStrategy(
