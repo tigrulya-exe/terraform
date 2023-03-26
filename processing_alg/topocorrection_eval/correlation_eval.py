@@ -49,7 +49,7 @@ class CorrelationPerFileMergeStrategy(PerFileMergeStrategy):
 
         band = out_ds.GetRasterBand(1)
         # rotate matrix by 180 deg
-        band.WriteArray(histogram[::-1, ::-1])
+        band.WriteArray(histogram[::-1, :])
 
 
 class CorrelationEvaluationAlgorithm(EvaluationAlgorithm):
@@ -153,21 +153,12 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
                        "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
                        "the same CRS, extent and spatial resolution.")
 
-    def need_to_show_result(self, execution_ctx: QgisExecutionContext):
-        # In this algorithm we manually set output file(s)
-        return False
-
-    def add_layers_to_project(self, ctx: QgisExecutionContext, results):
-        need_open = self.parameterAsBoolean(ctx.qgis_params, 'OPEN_OUT_FILE', ctx.qgis_context)
-        if need_open:
-            set_layers_to_load(ctx.qgis_context, results)
-
     def processAlgorithmInternal(
             self,
             parameters: Dict[str, Any],
             context: QgisExecutionContext,
             feedback: QgsProcessingFeedback
-    ) -> Dict[str, Any]:
+    ):
         context.sza_degrees = self.parameterAsDouble(parameters, 'SZA', context.qgis_context)
         context.solar_azimuth_degrees = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context.qgis_context)
 
@@ -179,8 +170,7 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
         group_ids_path = None if group_ids_layer is None else group_ids_layer.source()
         paths_with_names = self.compute_correlation(context, luminance_path, group_ids_path)
 
-        self.add_layers_to_project(context, paths_with_names)
-        return {}
+        return paths_with_names
 
     def compute_correlation(self, ctx: QgisExecutionContext, luminance_path, group_ids_path):
         bins = self.parameterAsInt(ctx.qgis_params, 'BIN_COUNT', ctx.qgis_context)
