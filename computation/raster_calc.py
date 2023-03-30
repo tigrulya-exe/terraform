@@ -255,3 +255,5 @@ class SimpleRasterCalc:
                 myOutB = myOut.GetRasterBand(1)
                 if myOutB.WriteArray(calc_res, xoff=x_offset, yoff=y_offset) != 0:
                     raise Exception('Block writing failed')
+
+        datasets_by_path = None

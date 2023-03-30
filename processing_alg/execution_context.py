@@ -49,7 +49,7 @@ class QgisExecutionContext:
                 self.slope,
                 self.aspect
             )
-        return self._aspect
+        return self._luminance
 
     def sza_cosine(self):
         return cos(radians(self.sza_degrees))
@@ -57,7 +57,6 @@ class QgisExecutionContext:
     def azimuth_cosine(self):
         return cos(radians(self.solar_azimuth_degrees))
 
-    @functools.cache
     def calculate_slope(self, in_radians=True) -> str:
         results = processing.run(
             "gdal:slope",
@@ -93,7 +92,6 @@ class QgisExecutionContext:
         )
         return slope_cos_result['OUTPUT']
 
-    @functools.cache
     def calculate_aspect(self, in_radians=True) -> str:
         results = processing.run(
             "gdal:aspect",
@@ -128,7 +126,6 @@ class QgisExecutionContext:
         )
         return slope_cos_result['OUTPUT']
 
-    @functools.cache
     def calculate_luminance(self, slope_path=None, aspect_path=None) -> str:
         if self.sza_degrees is None or self.solar_azimuth_degrees is None:
             raise RuntimeError(f"SZA and azimuth angles not initializes")

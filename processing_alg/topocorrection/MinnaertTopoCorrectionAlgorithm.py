@@ -82,5 +82,5 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
                 RasterInfo("slope", ctx.slope, 1)
             ],
-            out_file_postfix="minnaert_y"
+            out_file_postfix=f"minnaert_y_{band_idx}"
         )

@@ -57,6 +57,9 @@ class TopoCorrectionAlgorithm:
         def task_wrapper(task, _ctx, _band_idx):
             self.process_band(_ctx, _band_idx)
 
+        # eagerly compute slope, aspect and luminance
+        _ = ctx.luminance
+
         for band_idx in range(ctx.input_layer.bandCount()):
             try:
                 task = QgsTask.fromFunction(f'Task for band {band_idx}', task_wrapper,

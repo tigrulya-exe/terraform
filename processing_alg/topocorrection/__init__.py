@@ -26,19 +26,17 @@ __author__ = 'Tigran Manasyan'
 __date__ = '2023-02-27'
 __copyright__ = '(C) 2023 by Tigran Manasyan'
 
-from . import (
-    CosineTTopoCorrectionAlgorithm,
-    CosineCTopoCorrectionAlgorithm,
-    CTopoCorrectionAlgorithm,
-    ScsTopoCorrectionAlgorithm,
-    ScsCTopoCorrectionAlgorithm,
-    MinnaertTopoCorrectionAlgorithm,
-    MinnaertScsTopoCorrectionAlgorithm,
-    PbmTopoCorrectionAlgorithm,
-    VecaTopoCorrectionAlgorithm,
-    TeilletRegressionTopoCorrectionAlgorithm,
-    PbcTopoCorrectionAlgorithm
-)
+from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
+from .CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
+from .CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
+from .MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
+from .MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
+from .PbcTopoCorrectionAlgorithm import PbcTopoCorrectionAlgorithm
+from .PbmTopoCorrectionAlgorithm import PbmTopoCorrectionAlgorithm
+from .ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
+from .ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
+from .TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
+from .VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
 
 DEFAULT_CORRECTIONS = [
     CosineTTopoCorrectionAlgorithm,

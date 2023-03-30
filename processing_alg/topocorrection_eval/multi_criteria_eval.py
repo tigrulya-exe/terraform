@@ -6,13 +6,13 @@ from typing import Any, Dict
 from qgis.core import QgsProcessingParameterEnum, QgsProcessingParameterRasterLayer, \
     QgsProcessingFeedback, QgsProcessingParameterNumber
 
-from computation.gdal_utils import open_img
 from .eval import EvaluationAlgorithm, MergeStrategy
 from .metrics import StdMetric, CvMetric, InterQuartileRangeMetric, RelativeMedianDifferenceRangeMetric, EvalMetric
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext
 from ..topocorrection import DEFAULT_CORRECTIONS
 from ..topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
+from ...computation.gdal_utils import open_img
 
 
 @dataclass
