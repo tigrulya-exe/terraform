@@ -1,3 +1,5 @@
+import os
+from copy import copy
 from dataclasses import dataclass
 from enum import Enum
 from statistics import mean, median
@@ -95,8 +97,6 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
     def _evaluate_group(self, group_idx):
         corrected_metrics_dict = dict()
 
-        self.corrected_handles = [open_img(path) for path in self.correction_results]
-
         orig_img_result = self._evaluate_raster(self.input_ds, group_idx)
 
         for correction_name, corrected_path in self.correction_results.items():
@@ -116,7 +116,7 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
     def _evaluate_band(self, band: EvaluationAlgorithm.BandInfo, group_idx) -> BandResult:
         metrics_results = dict()
-        for metric_id, metric in self.metrics_dict:
+        for metric_id, metric in self.metrics_dict.items():
             metrics_results[metric.id()] = metric.evaluate(band.band_bytes)
 
         return BandResult(metrics_results)
@@ -146,8 +146,9 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
     def _norm(self, group_result: GroupResult, band_idx: int) -> dict[str, list[float]]:
         norms: dict[str, list[float]] = dict()
-        for metric_id in self.metrics_dict.keys():
-            norms[metric_id] = group_result.corrected_metrics(band_idx, metric_id)
+        for metric_id, metric in self.metrics_dict.items():
+            corrected_metrics = group_result.corrected_metrics(band_idx, metric_id)
+            norms[metric_id] = metric.norm(corrected_metrics)
         return norms
 
     def _combine_metrics(
@@ -162,10 +163,15 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
         return combined_metrics
 
+    # todo parallelize
     def _perform_topo_corrections(self):
+        correction_ctx = copy(self.ctx)
+
         for correction in self.corrections:
-            dict_result = correction.process(self.ctx)
-            self.correction_results[correction.get_name()] = dict_result['OUT']
+            corrected_image_path = os.path.join(self.ctx.output_file_path, f"{correction.get_name()}.tif")
+            correction_ctx.output_file_path = corrected_image_path
+            correction.process(correction_ctx)
+            self.correction_results[correction.get_name()] = corrected_image_path
 
 
 class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm):

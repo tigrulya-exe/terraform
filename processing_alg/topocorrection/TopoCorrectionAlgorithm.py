@@ -32,9 +32,11 @@ class TopoCorrectionAlgorithm:
     def process(self, ctx: QgisExecutionContext) -> Dict[str, Any]:
         self.init(ctx)
 
+        ctx.log(f"{self.get_name()} correction started: parallel={ctx.run_parallel}")
         result_bands = self._process_parallel(ctx) if ctx.run_parallel else self._process_sequentially(ctx)
 
-        return processing.runAndLoadResults(
+        # todo change to just run without load
+        results = processing.runAndLoadResults(
             "gdal:merge",
             {
                 'INPUT': result_bands,
@@ -45,11 +47,14 @@ class TopoCorrectionAlgorithm:
                 'OPTIONS': '',
                 'EXTRA': '',
                 'DATA_TYPE': 5,
-                'OUTPUT': ctx.qgis_params['OUTPUT']
+                'OUTPUT': ctx.output_file_path
             },
             feedback=ctx.qgis_feedback,
             context=ctx.qgis_context
         )
+
+        ctx.log(f"{self.get_name()} correction finished")
+        return results
 
     def _process_parallel(self, ctx: QgisExecutionContext):
         result_bands = []

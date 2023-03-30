@@ -26,17 +26,11 @@ class EvalMetric:
     def name(self):
         pass
 
-    def evaluate(self, values) -> float:
+    def evaluate(self, values: list) -> float:
         pass
 
-    def metric(self, values) -> float:
-        pass
-
-    def combine(self, left: float, right: float):
-        pass
-
-    def eval(self, original_bytes: list, corrected_bytes: list) -> float:
-        return self.multiplier * (self.metric(original_bytes) - self.metric(corrected_bytes))
+    def combine(self, original: float, corrected: float):
+        return self.multiplier * (original - corrected)
 
     @staticmethod
     def norm(metrics: list[float]) -> list[float]:
@@ -46,35 +40,60 @@ class EvalMetric:
 
 
 class StdMetric(EvalMetric):
-    def metric(self, values) -> float:
+    def id(self):
+        return "std_reduction"
+
+    def name(self):
+        return "Mean reflectance reduction"
+
+    def evaluate(self, values) -> float:
         return np.std(values)
 
 
 class CvMetric(EvalMetric):
-    def metric(self, values: list):
+    def id(self):
+        return "cv_reduction"
+
+    def name(self):
+        return "Coefficient of variation reduction"
+
+    def evaluate(self, values: list):
         return np.std(values) / np.mean(values)
 
 
 # todo add iqr outliers metric https://www.scribbr.com/statistics/outliers/
 class InterQuartileRangeMetric(EvalMetric):
+    def id(self):
+        return "iqr_reduction"
+
+    def name(self):
+        return "Inter quartile range reduction"
+
     @staticmethod
-    @functools.cache
+    # @functools.cache
     def get_q1_q3(values):
         return np.percentile(values, [25, 75])
 
-    def metric(self, values: list):
+    def evaluate(self, values: list):
         q1, q3 = InterQuartileRangeMetric.get_q1_q3(values)
         return q3 - q1
 
 
 class RelativeMedianDifferenceRangeMetric(EvalMetric):
-    @functools.cache
-    def metric(self, values: list):
+    def id(self):
+        return "relative_median_difference"
+
+    def name(self):
+        return "Relative median difference"
+
+    # @functools.cache
+    def evaluate(self, values: list):
         return np.median(values)
 
-    def eval(self, original_bytes: list, corrected_bytes: list) -> float:
-        orig_metric = self.metric(original_bytes)
-        return abs(self.metric(corrected_bytes) - orig_metric) / orig_metric
+    def combine(self, original: float, corrected: float):
+        orig_metric = self.evaluate(original)
+        return abs(self.evaluate(corrected) - orig_metric) / orig_metric
+
 
 # todo do smth with threshold
 class ThresholdOutliersCountMetric(EvalMetric):
@@ -82,7 +101,7 @@ class ThresholdOutliersCountMetric(EvalMetric):
         super().__init__(is_reduction=False)
         self.threshold = threshold
 
-    def metric(self, values) -> float:
+    def evaluate(self, values) -> float:
         return np.count_nonzero(values > self.threshold)
 
 

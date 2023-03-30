@@ -214,6 +214,8 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         run_parallel = self.parameterAsBoolean(parameters, 'RUN_PARALLEL', context)
         task_timeout = self.parameterAsInt(parameters, 'TASK_TIMEOUT', context)
 
+        output_file_path = self.parameterAsFileOutput(parameters, 'OUTPUT', context)
+
         # todo migrate topo correction algorithms to QgisExecutionContext
         class TopoCorrectionQgisExecutionContext(QgisExecutionContext):
             def __init__(inner):
@@ -226,7 +228,8 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
                     sza_degrees=solar_zenith_angle,
                     solar_azimuth_degrees=solar_azimuth,
                     run_parallel=run_parallel,
-                    task_timeout=task_timeout
+                    task_timeout=task_timeout,
+                    output_file_path=output_file_path
                 )
 
             def calculate_slope(inner, in_radians=True) -> str:
