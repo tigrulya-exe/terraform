@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -33,7 +34,6 @@ class PerFileMergeStrategy(MergeStrategy):
 
 class PlotPerFileMergeStrategy(PerFileMergeStrategy):
     def __init__(self, output_directory: str, path_provider, figsize=(15, 15), subplot_kw=None):
-
         super().__init__(output_directory, path_provider)
         self.figsize = figsize
         self.subplot_kw = subplot_kw
@@ -52,13 +52,17 @@ class SubplotMergeStrategy(MergeStrategy):
     def __init__(
             self,
             subplots_in_row=4,
-            output_file_path=None,
+            path_provider=None,
             figsize=(15, 15),
             subplot_kw=None):
         self.subplots_in_row = subplots_in_row
-        self.output_file_path = output_file_path
+        self.path_provider = path_provider or SubplotMergeStrategy._default_path_provider
         self.figsize = figsize
         self.subplot_kw = subplot_kw
+
+    @staticmethod
+    def _default_path_provider(_):
+        return None
 
     def merge(self, subplot_infos):
         row_count = len(subplot_infos) // self.subplots_in_row
@@ -75,12 +79,13 @@ class SubplotMergeStrategy(MergeStrategy):
 
         self.after_plot(fig, axes)
 
+        output_file_path = self.path_provider(subplot_infos)
         plt.tight_layout()
-        if self.output_file_path is not None:
-            plt.savefig(self.output_file_path, bbox_inches="tight")
+        if output_file_path is not None:
+            plt.savefig(output_file_path, bbox_inches="tight")
 
         # todo tmp
-        return [self.output_file_path]
+        return [output_file_path]
 
     def after_plot(self, fig, axes):
         pass
@@ -90,6 +95,13 @@ class SubplotMergeStrategy(MergeStrategy):
 
 
 class EvaluationAlgorithm:
+    @dataclass
+    class BandInfo:
+        def __init__(self, gdal_band, band_bytes, idx):
+            self.gdal_band = gdal_band
+            self.band_bytes = band_bytes
+            self.idx = idx
+
     def __init__(
             self,
             ctx: QgisExecutionContext,
@@ -113,20 +125,26 @@ class EvaluationAlgorithm:
         result = []
 
         for group in self.groups:
-            band_results = []
-            for band_idx in range(self.input_ds.RasterCount):
-                band = self.input_ds.GetRasterBand(band_idx + 1)
-
-                band_bytes = band.ReadAsArray().ravel()[self.groups_map == group]
-
-                band_result = self.evaluate_band(band_bytes, band_idx, band, group)
-                band_results.append(band_result)
-
-                if self.ctx.is_canceled():
-                    return None
-
-            result += self.merge_strategy.merge(band_results)
+            result += self._evaluate_group(group)
         return result
 
-    def evaluate_band(self, band_bytes, gdal_band, band_idx, group_idx) -> Any:
+    def _evaluate_group(self, group):
+        band_results = self._evaluate_raster(self.input_ds, group)
+        return self.merge_strategy.merge(band_results)
+
+    def _evaluate_raster(self, raster_ds, group_idx):
+        band_results = []
+        for band_idx in range(raster_ds.RasterCount):
+            original_band = raster_ds.GetRasterBand(band_idx + 1)
+            band_bytes = original_band.ReadAsArray().ravel()[self.groups_map == group_idx]
+
+            band_result = self._evaluate_band(self.BandInfo(original_band, band_bytes, band_idx), group_idx)
+            band_results.append(band_result)
+
+            if self.ctx.is_canceled():
+                # todo
+                return None
+        return band_results
+
+    def _evaluate_band(self, band: BandInfo, group_idx) -> Any:
         pass

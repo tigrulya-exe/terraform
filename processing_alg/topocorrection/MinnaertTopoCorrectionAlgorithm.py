@@ -1,6 +1,7 @@
 import numpy as np
 
-from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
+from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
+from ..execution_context import QgisExecutionContext
 from ...computation import gdal_utils
 from ...computation.raster_calc import RasterInfo
 
@@ -10,11 +11,11 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     def get_name():
         return "Minnaert"
 
-    def init(self, ctx: TopoCorrectionContext):
+    def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
         self.x_path = self.calculate_x(ctx)
 
-    def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
+    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         k = self.calculate_k(ctx, band_idx)
 
         def calculate(**kwargs):
@@ -33,18 +34,18 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance_path, 1)
+                RasterInfo("luminance", ctx.luminance, 1)
             ],
             out_file_postfix=band_idx
         )
 
-    def calculate_k(self, ctx: TopoCorrectionContext, band_idx: int):
+    def calculate_k(self, ctx: QgisExecutionContext, band_idx: int):
         y_path = self.calculate_y(ctx, band_idx)
         intercept, slope = gdal_utils.raster_linear_regression(self.x_path, y_path)
         ctx.qgis_feedback.pushInfo(f'{(intercept, slope)}')
         return slope
 
-    def calculate_x(self, ctx: TopoCorrectionContext) -> str:
+    def calculate_x(self, ctx: QgisExecutionContext) -> str:
         def calculate(**kwargs):
             luminance = kwargs["luminance"]
             slope = kwargs["slope"]
@@ -58,13 +59,13 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         return self.raster_calculate(
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("luminance", ctx.luminance_path, 1),
-                RasterInfo("slope", ctx.slope_rad_path, 1)
+                RasterInfo("luminance", ctx.luminance, 1),
+                RasterInfo("slope", ctx.slope, 1)
             ],
             out_file_postfix="minnaert_x"
         )
 
-    def calculate_y(self, ctx: TopoCorrectionContext, band_idx: int) -> str:
+    def calculate_y(self, ctx: QgisExecutionContext, band_idx: int) -> str:
         def calculate(**kwargs):
             input_raster = kwargs["input"]
             slope = kwargs["slope"]
@@ -79,7 +80,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("slope", ctx.slope_rad_path, 1)
+                RasterInfo("slope", ctx.slope, 1)
             ],
             out_file_postfix="minnaert_y"
         )

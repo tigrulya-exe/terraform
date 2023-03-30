@@ -1,6 +1,7 @@
 import numpy as np
 
-from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm, TopoCorrectionContext
+from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
+from ..execution_context import QgisExecutionContext
 from ...computation.raster_calc import RasterInfo
 
 
@@ -9,7 +10,7 @@ class ScsTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     def get_name():
         return "SCS"
 
-    def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
+    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         def calculate(**kwargs):
             input_band = kwargs["input"]
             luminance = kwargs["luminance"]
@@ -26,8 +27,8 @@ class ScsTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance_path, 1),
-                RasterInfo("slope", ctx.slope_rad_path, 1)
+                RasterInfo("luminance", ctx.luminance, 1),
+                RasterInfo("slope", ctx.slope, 1)
             ],
             out_file_postfix=band_idx
         )

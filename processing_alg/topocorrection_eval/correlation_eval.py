@@ -11,7 +11,6 @@ from .eval import EvaluationAlgorithm, MergeStrategy, PerFileMergeStrategy
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext
 from ...computation import gdal_utils
-from ...computation.qgis_utils import set_layers_to_load
 
 
 class CorrelationNodeInfo:
@@ -66,16 +65,16 @@ class CorrelationEvaluationAlgorithm(EvaluationAlgorithm):
         self.img_ds = gdal_utils.open_img(ctx.input_layer.source())
         self.luminance_bytes = gdal_utils.read_band_as_array(luminance_path).ravel()
 
-    def evaluate_band(self, band_bytes, band_idx, gdal_band, group_idx) -> Any:
+    def _evaluate_band(self, band: EvaluationAlgorithm.BandInfo, group_idx) -> Any:
         x_min, x_max = 0, 1
 
         group_luminance_bytes = self.luminance_bytes[self.groups_map == group_idx]
 
         # todo change to band.minmax()
-        img_min, img_max, *_ = gdal_band.GetStatistics(True, True)
+        img_min, img_max, *_ = band.gdal_band.GetStatistics(True, True)
         histogram, _, _ = np.histogram2d(
             group_luminance_bytes,
-            band_bytes,
+            band.band_bytes,
             bins=self.bins,
             range=[[x_min, x_max], [img_min, img_max]]
         )
@@ -83,10 +82,11 @@ class CorrelationEvaluationAlgorithm(EvaluationAlgorithm):
         intercept, slope = np.polynomial.polynomial.polyfit(group_luminance_bytes, band_bytes, 1)
         return CorrelationNodeInfo(
             histogram.T,
-            gdal_band.GetDescription(),
+            band.gdal_band.GetDescription(),
             group_luminance_bytes,
             (img_min, img_max),
-            (intercept, slope)
+            (intercept, slope),
+            group_idx
         )
 
 
@@ -162,17 +162,13 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
         context.sza_degrees = self.parameterAsDouble(parameters, 'SZA', context.qgis_context)
         context.solar_azimuth_degrees = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context.qgis_context)
 
-        luminance_path = context.calculate_luminance()
-        if context.qgis_feedback.isCanceled():
-            return {}
-
         group_ids_layer = self.parameterAsRasterLayer(parameters, 'CLASSIFICATION_MAP', context.qgis_context)
         group_ids_path = None if group_ids_layer is None else group_ids_layer.source()
-        paths_with_names = self.compute_correlation(context, luminance_path, group_ids_path)
+        paths_with_names = self.compute_correlation(context, group_ids_path)
 
         return paths_with_names
 
-    def compute_correlation(self, ctx: QgisExecutionContext, luminance_path, group_ids_path):
+    def compute_correlation(self, ctx: QgisExecutionContext, group_ids_path):
         bins = self.parameterAsInt(ctx.qgis_params, 'BIN_COUNT', ctx.qgis_context)
 
         def generate_file_name(node: CorrelationNodeInfo):
@@ -186,7 +182,7 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
         alg = CorrelationEvaluationAlgorithm(
             ctx,
             merge_strategy,
-            luminance_path,
+            ctx.luminance,
             bins,
             group_ids_path,
         )

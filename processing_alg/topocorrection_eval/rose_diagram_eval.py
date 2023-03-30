@@ -44,10 +44,12 @@ class RoseDiagramsNodeInfo:
             self,
             group_means,
             name,
-            group_idx=None):
+            group_idx=None,
+            include_stats=True):
         self.group_means = group_means
         self.name = name
         self.group_idx = group_idx
+        self.include_stats = include_stats
 
 
 def _draw_subplot(
@@ -55,8 +57,10 @@ def _draw_subplot(
         ax,
         slope_groups_bounds,
         aspect_bounds_rad):
-    stats = ",\n".join(
-        [f"{name} = {value:.3f}" for name, value in compute_statistics(plot_info.group_means.ravel()).items()])
+    stats = None
+    if plot_info.include_stats:
+        stats = ",\n".join(
+            [f"{name} = {value:.3f}" for name, value in compute_statistics(plot_info.group_means.ravel()).items()])
 
     # tick - 30 degree
     ax.set_xticks(np.linspace(0, 2 * np.pi, 12, endpoint=False))
@@ -68,10 +72,11 @@ def _draw_subplot(
                        MPLT_MARKERS[slope_bound_idx % len(MPLT_MARKERS)]
         ax.plot(aspect_bounds_rad, subgroup_means, point_design,
                 label=get_slope_label(slope_groups_bounds, slope_bound_idx))
-        ax.text(.5, -.1, stats,
-                horizontalalignment='center',
-                verticalalignment='top',
-                transform=ax.transAxes)
+        if stats is not None:
+            ax.text(.5, -.1, stats,
+                    horizontalalignment='center',
+                    verticalalignment='top',
+                    transform=ax.transAxes)
 
     # ax.legend(bbox_to_anchor=(1.04, 0.5), loc="center left", borderaxespad=0, title='Slope')
     ax.tick_params(axis='y', rotation=45)
@@ -94,9 +99,9 @@ class RoseDiagramMergeStrategy(SubplotMergeStrategy):
             aspect_groups_count=36,
             aspect_max_deg=360.0,
             subplots_in_row=4,
-            output_file_path=None,
+            path_provider=None,
             figsize=(20, 20)):
-        super().__init__(subplots_in_row, output_file_path, figsize, dict(projection='polar'))
+        super().__init__(subplots_in_row, path_provider, figsize, dict(projection='polar'))
         self.slope_groups_bounds = divide_to_groups(slope_groups_count, upper_bound=slope_max_deg)
         self.aspect_groups_bounds = divide_to_groups(aspect_groups_count, upper_bound=aspect_max_deg)
         self.aspect_bounds_rad = None
@@ -176,7 +181,8 @@ class RoseDiagramEvaluationAlgorithm(EvaluationAlgorithm):
             slope_max_deg=90.0,
             aspect_groups_count=36,
             aspect_max_deg=360.0,
-            group_ids=None):
+            group_ids=None,
+            include_stats=True):
         super().__init__(ctx, merge_strategy, group_ids)
 
         slope_path = ctx.calculate_slope(in_radians=False)
@@ -188,15 +194,18 @@ class RoseDiagramEvaluationAlgorithm(EvaluationAlgorithm):
         slope_groups = group_by_range(slope_bytes, slope_groups_count, upper_bound=slope_max_deg)
         aspect_groups = group_by_range(aspect_bytes, aspect_groups_count, upper_bound=aspect_max_deg)
         self.groups_idxs = np.vstack((slope_groups, aspect_groups))
+        # todo tmp
+        self.include_stats = include_stats
 
-    def evaluate_band(self, band_bytes, band_idx, gdal_band, group_idx) -> Any:
+    def _evaluate_band(self, band: EvaluationAlgorithm.BandInfo, group_idx) -> Any:
         groups_idxs = self.groups_idxs[:, self.groups_map == group_idx]
 
-        group_means = npg.aggregate(groups_idxs, band_bytes, func='mean', fill_value=0)
+        group_means = npg.aggregate(groups_idxs, band.band_bytes, func='mean', fill_value=0)
         return RoseDiagramsNodeInfo(
             group_means,
-            gdal_band.GetDescription(),
-            group_idx
+            band.gdal_band.GetDescription(),
+            group_idx,
+            self.include_stats
         )
 
 
@@ -252,6 +261,13 @@ class RoseDiagramEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
 
         pixel_scale_param = self.output_format_param()
         self._additional_param(pixel_scale_param)
+
+        draw_stats_param = QgsProcessingParameterBoolean(
+            'INCLUDE_STATS',
+            self.tr('Include statistical information to the plots'),
+            defaultValue=False
+        )
+        self._additional_param(draw_stats_param)
 
         classification_map_param = QgsProcessingParameterRasterLayer(
             'CLASSIFICATION_MAP',
@@ -323,10 +339,12 @@ class RoseDiagramEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
         group_ids_layer = self.parameterAsRasterLayer(parameters, 'CLASSIFICATION_MAP', ctx.qgis_context)
         group_ids_path = None if group_ids_layer is None else group_ids_layer.source()
 
-        def generate_file_name(node: RoseDiagramsNodeInfo):
-            return f"rose_diagram_{node.group_idx}_{node.name}.{output_format}"
+        include_stats = self.parameterAsBoolean(ctx.qgis_params, 'INCLUDE_STATS', ctx.qgis_context)
 
         if per_file:
+            def generate_file_name(node: RoseDiagramsNodeInfo):
+                return f"rose_diagram_{node.group_idx}_{node.name}.{output_format}"
+
             merge_strategy = RoseDiagramPerFileMergeStrategy(
                 ctx.output_file_path,
                 generate_file_name,
@@ -336,12 +354,16 @@ class RoseDiagramEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
                 aspect_max_deg,
             )
         else:
+            def generate_file_name(nodes: list[RoseDiagramsNodeInfo]):
+                filename = f"rose_diagram_group_{nodes[0].group_idx}.{output_format}"
+                return os.path.join(ctx.output_file_path, filename)
+
             merge_strategy = RoseDiagramMergeStrategy(
                 slope_groups_count,
                 slope_max_deg,
                 aspect_groups_count,
                 aspect_max_deg,
-                output_file_path=os.path.join(ctx.output_file_path, f"rose_diagram.{output_format}")
+                path_provider=generate_file_name
             )
 
         # todo move rose connected input to separate class and instantiate in once
@@ -352,7 +374,8 @@ class RoseDiagramEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
             slope_max_deg,
             aspect_groups_count,
             aspect_max_deg,
-            group_ids_path
+            group_ids_path,
+            include_stats
         )
 
         results = alg.evaluate()

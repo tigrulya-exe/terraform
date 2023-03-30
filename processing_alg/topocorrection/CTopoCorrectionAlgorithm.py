@@ -1,7 +1,7 @@
 import numpy as np
 
 from .SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
-from .TopoCorrectionAlgorithm import TopoCorrectionContext
+from ..execution_context import QgisExecutionContext
 from ...computation.raster_calc import RasterInfo
 
 
@@ -10,7 +10,7 @@ class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
     def get_name():
         return "C-correction"
 
-    def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
+    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         c = self.calculate_c(ctx, band_idx)
 
         def calculate(**kwargs):
@@ -29,11 +29,11 @@ class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance_path, 1),
+                RasterInfo("luminance", ctx.luminance, 1),
             ],
             out_file_postfix=band_idx
         )
 
-    def calculate_c(self, ctx: TopoCorrectionContext, band_idx: int) -> float:
+    def calculate_c(self, ctx: QgisExecutionContext, band_idx: int) -> float:
         intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
         return intercept / slope

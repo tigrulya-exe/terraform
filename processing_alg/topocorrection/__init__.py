@@ -25,3 +25,31 @@
 __author__ = 'Tigran Manasyan'
 __date__ = '2023-02-27'
 __copyright__ = '(C) 2023 by Tigran Manasyan'
+
+from . import (
+    CosineTTopoCorrectionAlgorithm,
+    CosineCTopoCorrectionAlgorithm,
+    CTopoCorrectionAlgorithm,
+    ScsTopoCorrectionAlgorithm,
+    ScsCTopoCorrectionAlgorithm,
+    MinnaertTopoCorrectionAlgorithm,
+    MinnaertScsTopoCorrectionAlgorithm,
+    PbmTopoCorrectionAlgorithm,
+    VecaTopoCorrectionAlgorithm,
+    TeilletRegressionTopoCorrectionAlgorithm,
+    PbcTopoCorrectionAlgorithm
+)
+
+DEFAULT_CORRECTIONS = [
+    CosineTTopoCorrectionAlgorithm,
+    CosineCTopoCorrectionAlgorithm,
+    CTopoCorrectionAlgorithm,
+    ScsTopoCorrectionAlgorithm,
+    ScsCTopoCorrectionAlgorithm,
+    MinnaertTopoCorrectionAlgorithm,
+    MinnaertScsTopoCorrectionAlgorithm,
+    PbmTopoCorrectionAlgorithm,
+    VecaTopoCorrectionAlgorithm,
+    TeilletRegressionTopoCorrectionAlgorithm,
+    PbcTopoCorrectionAlgorithm
+]

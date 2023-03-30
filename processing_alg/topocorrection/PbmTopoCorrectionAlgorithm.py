@@ -1,7 +1,7 @@
 import numpy as np
 
 from .MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
-from .TopoCorrectionAlgorithm import TopoCorrectionContext
+from ..execution_context import QgisExecutionContext
 from ...computation.raster_calc import RasterInfo
 
 
@@ -10,7 +10,7 @@ class PbmTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
     def get_name():
         return "Pixel based Minnaert"
 
-    def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
+    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         k = self.calculate_k(ctx, band_idx)
 
         def calculate(**kwargs):
@@ -29,8 +29,8 @@ class PbmTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance_path, 1),
-                RasterInfo("slope", ctx.slope_rad_path, 1)
+                RasterInfo("luminance", ctx.luminance, 1),
+                RasterInfo("slope", ctx.slope, 1)
             ],
             out_file_postfix=band_idx
         )

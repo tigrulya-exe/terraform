@@ -1,5 +1,6 @@
 import functools
-from math import radians
+from dataclasses import dataclass
+from math import radians, cos
 from typing import Dict, Any
 
 import processing
@@ -9,29 +10,52 @@ from ..computation.qgis_utils import check_compatible
 
 
 # todo use simple raster calc in methods instead of qgis raster calc
+@dataclass
 class QgisExecutionContext:
-    def __init__(
-            self,
-            qgis_context: QgsProcessingContext,
-            qgis_feedback: QgsProcessingFeedback,
-            qgis_params: Dict[str, Any],
-            input_layer: QgsRasterLayer,
-            dem_layer: QgsRasterLayer,
-            output_file_path: str = None,
-            sza_degrees: float = None,
-            solar_azimuth_degrees: float = None):
-        check_compatible(input_layer, dem_layer)
-        self.qgis_context = qgis_context
-        self.qgis_params = qgis_params
-        self.qgis_feedback = qgis_feedback
-        self.input_layer = input_layer
-        self.dem_layer = dem_layer
-        self.sza_degrees = sza_degrees
-        self.solar_azimuth_degrees = solar_azimuth_degrees
-        self.output_file_path = output_file_path
+    qgis_context: QgsProcessingContext
+    qgis_feedback: QgsProcessingFeedback
+    qgis_params: Dict[str, Any]
+    input_layer: QgsRasterLayer
+    dem_layer: QgsRasterLayer
+    output_file_path: str = None
+    sza_degrees: float = None
+    solar_azimuth_degrees: float = None
+    run_parallel: bool = False
+    task_timeout: int = 10000
 
     def is_canceled(self):
         return self.qgis_feedback.isCanceled()
+
+    def log(self, message: str):
+        return self.qgis_feedback.pushInfo(message)
+
+
+    @property
+    def slope(self):
+        if getattr(self, '_slope', None) is None:
+            self._slope = self.calculate_slope()
+        return self._slope
+
+    @property
+    def aspect(self):
+        if getattr(self, '_aspect', None) is None:
+            self._aspect = self.calculate_aspect()
+        return self._aspect
+
+    @property
+    def luminance(self):
+        if getattr(self, '_luminance', None) is None:
+            self._luminance = self.calculate_luminance(
+                self.slope,
+                self.aspect
+            )
+        return self._aspect
+
+    def sza_cosine(self):
+        return cos(radians(self.sza_degrees))
+
+    def azimuth_cosine(self):
+        return cos(radians(self.solar_azimuth_degrees))
 
     @functools.cache
     def calculate_slope(self, in_radians=True) -> str:

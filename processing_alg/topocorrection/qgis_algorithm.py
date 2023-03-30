@@ -42,19 +42,9 @@ from qgis.core import (QgsProcessingContext,
                        QgsProcessingParameterRasterDestination)
 from qgis.core import QgsProcessingParameterBoolean
 
+from . import DEFAULT_CORRECTIONS
 from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
-from .CosineCTopoCorrectionAlgorithm import CosineCTopoCorrectionAlgorithm
-from .CosineTTopoCorrectionAlgorithm import CosineTTopoCorrectionAlgorithm
-from .MinnaertScsTopoCorrectionAlgorithm import MinnaertScsTopoCorrectionAlgorithm
-from .MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
-from .PbcTopoCorrectionAlgorithm import PbcTopoCorrectionAlgorithm
-from .PbmTopoCorrectionAlgorithm import PbmTopoCorrectionAlgorithm
-from .ScsCTopoCorrectionAlgorithm import ScsCTopoCorrectionAlgorithm
-from .ScsTopoCorrectionAlgorithm import ScsTopoCorrectionAlgorithm
-from .TeilletRegressionTopoCorrectionAlgorithm import TeilletRegressionTopoCorrectionAlgorithm
-from .TopoCorrectionAlgorithm import TopoCorrectionContext
 from .TopoCorrectionPostProcessor import TopoCorrectionPostProcessor
-from .VecaTopoCorrectionAlgorithm import VecaTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
 from ...computation.qgis_utils import add_layer_to_load
@@ -76,19 +66,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         self.algorithms = self.find_algorithms()
 
     def find_algorithms(self):
-        algorithms = [
-            CosineTTopoCorrectionAlgorithm,
-            CosineCTopoCorrectionAlgorithm,
-            CTopoCorrectionAlgorithm,
-            ScsTopoCorrectionAlgorithm,
-            ScsCTopoCorrectionAlgorithm,
-            MinnaertTopoCorrectionAlgorithm,
-            MinnaertScsTopoCorrectionAlgorithm,
-            PbmTopoCorrectionAlgorithm,
-            VecaTopoCorrectionAlgorithm,
-            TeilletRegressionTopoCorrectionAlgorithm,
-            PbcTopoCorrectionAlgorithm
-        ]
+        algorithms = DEFAULT_CORRECTIONS
         algorithms_dict = dict()
         for algorithm in algorithms:
             algorithms_dict[algorithm.get_name()] = algorithm()
@@ -232,11 +210,24 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         solar_zenith_angle = self.parameterAsDouble(parameters, 'SZA', context)
         solar_azimuth = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context)
 
+        self.show_tmp_layers = self.parameterAsEnums(parameters, 'SHOW_AUXILIARY_LAYERS', context)
+        run_parallel = self.parameterAsBoolean(parameters, 'RUN_PARALLEL', context)
+        task_timeout = self.parameterAsInt(parameters, 'TASK_TIMEOUT', context)
+
         # todo migrate topo correction algorithms to QgisExecutionContext
         class TopoCorrectionQgisExecutionContext(QgisExecutionContext):
             def __init__(inner):
-                super().__init__(context, feedback, parameters, input_layer, dem_layer, sza_degrees=solar_zenith_angle,
-                                 solar_azimuth_degrees=solar_azimuth)
+                super().__init__(
+                    context,
+                    feedback,
+                    parameters,
+                    input_layer,
+                    dem_layer,
+                    sza_degrees=solar_zenith_angle,
+                    solar_azimuth_degrees=solar_azimuth,
+                    run_parallel=run_parallel,
+                    task_timeout=task_timeout
+                )
 
             def calculate_slope(inner, in_radians=True) -> str:
                 result_path = super().calculate_slope(in_radians)
@@ -253,44 +244,11 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
                 self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.LUMINANCE, "Luminance_gen")
                 return result_path
 
-        # todo tmp solution, need migrate fully to execution_context
-        exec_ctx = TopoCorrectionQgisExecutionContext()
-
-        self.show_tmp_layers = self.parameterAsEnums(parameters, 'SHOW_AUXILIARY_LAYERS', context)
-        run_parallel = self.parameterAsBoolean(parameters, 'RUN_PARALLEL', context)
-        task_timeout = self.parameterAsInt(parameters, 'TASK_TIMEOUT', context)
-
-        slope_rad_path = exec_ctx.calculate_slope(in_radians=True)
-        if feedback.isCanceled():
-            return {}
-
-        aspect_path = exec_ctx.calculate_aspect(in_radians=True)
-        if feedback.isCanceled():
-            return {}
-
-        luminance_path = exec_ctx.calculate_luminance(slope_rad_path, aspect_path)
-        if feedback.isCanceled():
-            return {}
-
-        # todo replace with exec_ctx
-        topo_context = TopoCorrectionContext(
-            qgis_context=context,
-            qgis_feedback=feedback,
-            qgis_params=parameters,
-            input_layer=input_layer,
-            slope_rad_path=slope_rad_path,
-            aspect_path=aspect_path,
-            luminance_path=luminance_path,
-            solar_zenith_angle=solar_zenith_angle,
-            solar_azimuth=solar_azimuth,
-            run_parallel=run_parallel,
-            task_timeout=task_timeout
-        )
-
-        tc_algorithm_name = self.parameterAsEnumString(parameters, 'TOPO_CORRECTION_ALGORITHM', context)
+        ctx = TopoCorrectionQgisExecutionContext()
+        correction_name = self.parameterAsEnumString(parameters, 'TOPO_CORRECTION_ALGORITHM', context)
 
         # add validation
-        results = self.algorithms[tc_algorithm_name].process(topo_context)
+        results = self.algorithms[correction_name].process(ctx)
 
         # todo: change band names even without load on completion
         if context.willLoadLayerOnCompletion(results['OUTPUT']):

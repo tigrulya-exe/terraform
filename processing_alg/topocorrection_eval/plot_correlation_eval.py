@@ -49,10 +49,10 @@ class CorrelationPlotMergeStrategy(SubplotMergeStrategy):
             cmap,
             plot_regression_line,
             subplots_in_row=4,
-            output_file_path=None,
+            path_provider=None,
             figsize=(28, 12),
             subplot_kw=None):
-        super().__init__(subplots_in_row, output_file_path, figsize, subplot_kw)
+        super().__init__(subplots_in_row, path_provider, figsize, subplot_kw)
         self.norm_method = norm_method
         self.cmap = cmap
         self.plot_regression_line = plot_regression_line
@@ -165,7 +165,7 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
         if self.format_param_supported_by_qgis(ctx):
             super().add_layers_to_project(ctx, results)
 
-    def compute_correlation(self, ctx: QgisExecutionContext, luminance_path, group_ids_path):
+    def compute_correlation(self, ctx: QgisExecutionContext, group_ids_path):
 
         output_directory = ctx.output_file_path
         bins = self.parameterAsInt(ctx.qgis_params, 'BIN_COUNT', ctx.qgis_context)
@@ -176,10 +176,10 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
         per_file = self.parameterAsBoolean(ctx.qgis_params, 'DRAW_PER_FILE', ctx.qgis_context)
         output_format = self.get_output_format_param(ctx)
 
-        def generate_file_name(node: CorrelationNodeInfo):
-            return f"correlation_{node.group_idx}_{node.name}.{output_format}"
-
         if per_file:
+            def generate_file_name(node: CorrelationNodeInfo):
+                return f"correlation_{node.group_idx}_{node.name}.{output_format}"
+
             merge_strategy = CorrelationPlotPerFileMergeStrategy(
                 output_directory,
                 generate_file_name,
@@ -188,17 +188,21 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
                 plot_regression_line
             )
         else:
+            def generate_file_name(nodes: list[CorrelationNodeInfo]):
+                filename = f"plot_correlation_subplots_{nodes[0].group_idx}.{output_format}"
+                return os.path.join(output_directory, filename)
+
             merge_strategy = CorrelationPlotMergeStrategy(
                 norm_method,
                 cmap,
                 plot_regression_line,
-                output_file_path=os.path.join(output_directory, f"plot_correlation_subplots.{output_format}")
+                path_provider=generate_file_name
             )
 
         alg = CorrelationEvaluationAlgorithm(
             ctx,
             merge_strategy,
-            luminance_path,
+            ctx.luminance,
             bins,
             group_ids_path,
         )

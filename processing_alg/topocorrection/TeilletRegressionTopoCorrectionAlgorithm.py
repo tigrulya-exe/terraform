@@ -1,5 +1,5 @@
 from .SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
-from .TopoCorrectionAlgorithm import TopoCorrectionContext
+from ..execution_context import QgisExecutionContext
 from ...computation import gdal_utils
 from ...computation.raster_calc import RasterInfo
 
@@ -9,11 +9,11 @@ class TeilletRegressionTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlg
     def get_name():
         return "Teillet regression"
 
-    def init(self, ctx: TopoCorrectionContext):
+    def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
         self.raster_means = gdal_utils.compute_band_means(ctx.input_layer.source())
 
-    def process_band(self, ctx: TopoCorrectionContext, band_idx: int):
+    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
 
         def calculate(**kwargs):
@@ -28,7 +28,7 @@ class TeilletRegressionTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlg
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance_path, 1),
+                RasterInfo("luminance", ctx.luminance, 1),
             ],
             out_file_postfix=band_idx
         )
