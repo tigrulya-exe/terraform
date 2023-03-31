@@ -4,8 +4,8 @@ import tempfile
 from typing import Dict, Any
 
 import processing
-from qgis._core import QgsTaskManager
 from qgis.core import (QgsProcessingException,
+                       QgsTaskManager,
                        QgsTask)
 
 from ..execution_context import QgisExecutionContext

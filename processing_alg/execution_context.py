@@ -1,4 +1,3 @@
-import functools
 from dataclasses import dataclass
 from math import radians, cos
 from typing import Dict, Any
@@ -23,12 +22,14 @@ class QgisExecutionContext:
     run_parallel: bool = False
     task_timeout: int = 10000
 
+    def __post_init__(self):
+        check_compatible(self.input_layer, self.dem_layer)
+
     def is_canceled(self):
         return self.qgis_feedback.isCanceled()
 
     def log(self, message: str):
         return self.qgis_feedback.pushInfo(message)
-
 
     @property
     def slope(self):

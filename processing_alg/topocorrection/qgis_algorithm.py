@@ -42,7 +42,7 @@ from qgis.core import (QgsProcessingContext,
                        QgsProcessingParameterRasterDestination)
 from qgis.core import QgsProcessingParameterBoolean
 
-from . import DEFAULT_CORRECTIONS
+from ..topocorrection import DEFAULT_CORRECTIONS
 from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from .TopoCorrectionPostProcessor import TopoCorrectionPostProcessor
 from ..execution_context import QgisExecutionContext
