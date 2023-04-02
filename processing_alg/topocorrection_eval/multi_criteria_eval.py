@@ -9,7 +9,8 @@ from qgis.core import QgsProcessingParameterEnum, QgsProcessingParameterRasterLa
     QgsProcessingFeedback, QgsProcessingParameterNumber
 
 from .eval import EvaluationAlgorithm, MergeStrategy
-from .metrics import StdMetric, CvMetric, InterQuartileRangeMetric, RelativeMedianDifferenceRangeMetric, EvalMetric
+from .metrics import StdMetric, CvMetric, InterQuartileRangeMetric, RelativeMedianDifferenceRangeMetric, EvalMetric, \
+    IqrOutliersCountMetric, RegressionSlopeMetric, EvalContext
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext
 from ..topocorrection import DEFAULT_CORRECTIONS
@@ -117,6 +118,7 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
     def _evaluate_band(self, band: EvaluationAlgorithm.BandInfo, group_idx) -> BandResult:
         metrics_results = dict()
         for metric_id, metric in self.metrics_dict.items():
+            metric.init(EvalContext(None, None, band.gdal_band))
             metrics_results[metric.id()] = metric.evaluate(band.band_bytes)
 
         return BandResult(metrics_results)
@@ -137,7 +139,7 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
             for correction_idx, correction_name in enumerate(results.corrected_results.keys()):
                 correction_band_result = 0.0
                 for metric_id, normed_values in normalized_metrics.items():
-                    correction_band_result += self.metrics_dict[metric_id].multiplier * normed_values[correction_idx]
+                    correction_band_result += self.metrics_dict[metric_id].weight * normed_values[correction_idx]
 
                 band_merge_results[correction_name] = correction_band_result
 
@@ -247,7 +249,9 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             StdMetric(),
             CvMetric(),
             InterQuartileRangeMetric(),
-            RelativeMedianDifferenceRangeMetric()
+            RelativeMedianDifferenceRangeMetric(),
+            IqrOutliersCountMetric()
+            # RegressionSlopeMetric()
         ]
 
         corrections = [CorrectionClass() for CorrectionClass in DEFAULT_CORRECTIONS]

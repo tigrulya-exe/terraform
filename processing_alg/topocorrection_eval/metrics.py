@@ -1,4 +1,5 @@
-import functools
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -15,10 +16,32 @@ def minmax(values: list):
     return min_val, max_val
 
 
+# тут надо наверн передавать не сами ориг байтс, а геттер хз
+@dataclass
+class EvalContext:
+    orig_bytes: list
+    orig_band: Any
+    current_band: Any
+
+    def current_minmax(self):
+        return self.band_minmax(self.orig_band)
+
+    def orig_minmax(self):
+        return self.band_minmax(self.orig_band)
+
+    def band_minmax(self, band):
+        band_min, band_max, *_ = band.gdal_band.GetStatistics(True, True)
+        return band_min, band_max
+
+
 class EvalMetric:
     def __init__(self, is_reduction=True, weight=1.0):
-        self.multiplier = 1 if is_reduction else -1
         self.weight = weight
+        self.norm_func = EvalMetric._revert_norm if is_reduction else EvalMetric._norm
+        self.ctx = None
+
+    def init(self, ctx: EvalContext):
+        self.ctx = ctx
 
     def id(self):
         pass
@@ -30,13 +53,20 @@ class EvalMetric:
         pass
 
     def combine(self, original: float, corrected: float):
-        return self.multiplier * (original - corrected)
+        return corrected - original
+
+    # norm all values to [0, 1] range
+    def norm(self, metrics: list[float]) -> list[float]:
+        min_val, max_val = minmax(metrics)
+        return [self.norm_func(metric, min_val, max_val) for metric in metrics]
 
     @staticmethod
-    def norm(metrics: list[float]) -> list[float]:
-        min_val, max_val = minmax(metrics)
-        minmax_diff = max_val - min_val
-        return [(metric - min_val) / minmax_diff for metric in metrics]
+    def _norm(metric, min_val, max_val):
+        return (metric - min_val) / (max_val - min_val)
+
+    @staticmethod
+    def _revert_norm(metric, min_val, max_val):
+        return 1 - EvalMetric._norm(metric, min_val, max_val)
 
 
 class StdMetric(EvalMetric):
@@ -91,24 +121,46 @@ class RelativeMedianDifferenceRangeMetric(EvalMetric):
         return np.median(values)
 
     def combine(self, original: float, corrected: float):
-        orig_metric = self.evaluate(original)
-        return abs(self.evaluate(corrected) - orig_metric) / orig_metric
+        return abs(corrected - original) / original
 
 
-# todo do smth with threshold
-class ThresholdOutliersCountMetric(EvalMetric):
-    def __init__(self, threshold):
+class OutliersCountMetric(EvalMetric):
+    def __init__(self):
         super().__init__(is_reduction=False)
-        self.threshold = threshold
 
     def evaluate(self, values) -> float:
-        return np.count_nonzero(values > self.threshold)
+        return np.count_nonzero(self._outliers_filter(values))
 
-
-class RegressionMetric(EvalMetric):
-    def __init__(self, y_bytes):
-        super().__init__()
-        self.y_bytes = y_bytes
-
-    def eval(self, original_bytes: list, corrected_bytes: list) -> float:
+    def _outliers_filter(self, values):
         pass
+
+
+class ThresholdOutliersCountMetric(OutliersCountMetric):
+    def __init__(self, min_threshold=None, max_threshold=None):
+        super().__init__()
+        self.min_threshold = min_threshold
+        self.max_threshold = max_threshold
+
+    def init(self, ctx: EvalContext):
+        super().init(ctx)
+        orig_min, orig_max = self.ctx.orig_minmax()
+        self.min_threshold = self.min_threshold or orig_min
+        self.max_threshold = self.max_threshold or orig_max
+
+    def _outliers_filter(self, values):
+        return np.logical_and(self.min_threshold < values, values < self.max_threshold)
+
+
+class IqrOutliersCountMetric(OutliersCountMetric):
+    def _outliers_filter(self, values):
+        q1, q3 = np.percentile(values, [25, 75])
+        min_threshold = q1 - (q3 - q1)
+        max_threshold = q3 + (q3 - q1)
+        return np.logical_and(min_threshold < values, values < max_threshold)
+
+
+class RegressionSlopeMetric(EvalMetric):
+    def evaluate(self, values: list) -> float:
+        _, slope = np.polynomial.polynomial.polyfit(values, self.ctx.orig_bytes, 1)
+        return abs(slope)
+
