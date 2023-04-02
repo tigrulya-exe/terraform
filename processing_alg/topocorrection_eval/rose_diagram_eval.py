@@ -200,7 +200,7 @@ class RoseDiagramEvaluationAlgorithm(EvaluationAlgorithm):
     def _evaluate_band(self, band: EvaluationAlgorithm.BandInfo, group_idx) -> Any:
         groups_idxs = self.groups_idxs[:, self.groups_map == group_idx]
 
-        group_means = npg.aggregate(groups_idxs, band.band_bytes, func='mean', fill_value=0)
+        group_means = npg.aggregate(groups_idxs, band.bytes, func='mean', fill_value=0)
         return RoseDiagramsNodeInfo(
             group_means,
             band.gdal_band.GetDescription(),

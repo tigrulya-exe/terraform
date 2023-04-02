@@ -7,11 +7,11 @@ from statistics import mean, median
 from typing import Any, Dict
 
 from qgis.core import QgsProcessingParameterEnum, QgsProcessingParameterRasterLayer, \
-    QgsProcessingFeedback, QgsProcessingParameterNumber
+    QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingException, QgsTask, QgsTaskManager
 
 from .eval import EvaluationAlgorithm, MergeStrategy
 from .metrics import StdMetric, CvMetric, InterQuartileRangeMetric, RelativeMedianDifferenceRangeMetric, EvalMetric, \
-    IqrOutliersCountMetric, EvalContext
+    IqrOutliersCountMetric, EvalContext, RegressionSlopeMetric, ThresholdOutliersCountMetric
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext
 from ..topocorrection import DEFAULT_CORRECTIONS
@@ -23,11 +23,13 @@ from ...computation.gdal_utils import open_img
 class BandResult:
     metrics: dict[str, float]
 
+    def __str__(self) -> str:
+        return f"{self.metrics}\n"
+
 
 @dataclass
 class GroupResult:
     group_idx: int
-    original_result: list[BandResult]
     corrected_results: dict[str, list[BandResult]]
 
     def corrected_metrics(self, band_idx, metric_id) -> list[float]:
@@ -92,87 +94,57 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
         return super().evaluate()
 
     def _evaluate_group(self, group_idx):
-        corrected_metrics_dict = dict()
-
-        orig_img_result = self._evaluate_raster(self.input_ds, group_idx)
-
-        for correction_name, corrected_path in self.correction_results.items():
-            corrected_ds = open_img(corrected_path)
-            corrected_metrics = self._evaluate_raster(corrected_ds, group_idx)
-            corrected_metrics_dict[correction_name] = corrected_metrics
-
-        group_result = GroupResult(group_idx, orig_img_result, corrected_metrics_dict)
-        scores_per_band = self.merge_strategy.merge(group_result)
-
-        return [self.metrics_combiner.combine(scores_per_band)]
-
-    def merge(self, results: GroupResult):
-        # list of correction_name -> overall score (higher better)
-        scores_per_band: list[dict[str, float]] = []
-        for band_idx, orig_band_result in enumerate(results.original_result.metrics):
-            band_metrics_dict = orig_band_result.metrics
-            for correction_name, corrected_result in results.corrected_results.items():
-                corrected_band_metrics_dict = corrected_result.metrics[band_idx].metrics
-                combined_metrics = self._combine_metrics(band_metrics_dict, corrected_band_metrics_dict)
-                corrected_result.metrics[band_idx].metrics = combined_metrics
-
-            normalized_metrics: dict[str, list[float]] = self._norm(results, band_idx)
-
-            band_merge_results = dict()
-            for correction_idx, correction_name in enumerate(results.corrected_results.keys()):
-                correction_band_result = 0.0
-                for metric_id, normed_values in normalized_metrics.items():
-                    correction_band_result += self.metrics_dict[metric_id].weight * normed_values[correction_idx]
-
-                band_merge_results[correction_name] = correction_band_result
-
-            scores_per_band.append(band_merge_results)
-        return scores_per_band
-
-    def _evaluate_group_2(self, group_idx):
         corrected_metrics_dict: dict[str, list[BandResult]] = defaultdict(list)
-
-        orig_img_result = self._evaluate_raster(self.input_ds, group_idx)
 
         corrected_ds_dict = {correction: open_img(result_path)
                              for correction, result_path in self.correction_results.items()}
 
         for band_idx in range(self.input_ds.RasterCount):
             orig_band = self._get_masked_band(self.input_ds, band_idx, group_idx)
+            orig_metrics = self._evaluate_band_unary(orig_band).metrics
+
             for correction_id, corrected_ds in corrected_ds_dict.items():
                 corrected_band = self._get_masked_band(corrected_ds, band_idx, group_idx)
-                band_result = self._evaluate_band(
-                    EvalContext(orig_band, corrected_band),
-                    group_idx
+                band_result = self._evaluate_band_binary(
+                    EvalContext(corrected_band, orig_band, orig_metrics)
                 )
                 corrected_metrics_dict[correction_id].append(band_result)
 
-        group_result = GroupResult(group_idx, orig_img_result, corrected_metrics_dict)
+        group_result = GroupResult(group_idx, corrected_metrics_dict)
+
+        self.ctx.log(str(group_result))
         scores_per_band = self.merge_strategy.merge(group_result)
 
         return [self.metrics_combiner.combine(scores_per_band)]
 
-    def merge_2(self, results: GroupResult):
-        # list of correction_name -> overall score (higher better)
+    def merge(self, results: GroupResult):
+        # list of correction_name -> overall score (higher better) for each band
         scores_per_band: list[dict[str, float]] = []
-        for band_idx, orig_band_result in enumerate(results.original_result):
+        for band_idx in range(self.input_ds.RasterCount):
             normalized_metrics: dict[str, list[float]] = self._norm(results, band_idx)
 
-            band_merge_results = dict()
+            band_scores_per_correction = dict()
             for correction_idx, correction_name in enumerate(results.corrected_results.keys()):
-                correction_band_result = 0.0
+                band_score = 0.0
                 for metric_id, normed_values in normalized_metrics.items():
-                    correction_band_result += self.metrics_dict[metric_id].weight * normed_values[correction_idx]
+                    band_score += self.metrics_dict[metric_id].weight * normed_values[correction_idx]
 
-                band_merge_results[correction_name] = correction_band_result
+                band_scores_per_correction[correction_name] = band_score
 
-            scores_per_band.append(band_merge_results)
+            scores_per_band.append(band_scores_per_correction)
         return scores_per_band
 
-    def _evaluate_band(self, ctx: EvalContext, group_idx) -> BandResult:
+    def _evaluate_band_unary(self, band: EvaluationAlgorithm.BandInfo) -> BandResult:
         metrics_results = dict()
         for metric_id, metric in self.metrics_dict.items():
-            metrics_results[metric.id()] = metric.evaluate(ctx.current_band.band_bytes, ctx)
+            metrics_results[metric.id()] = metric.unary(band.bytes)
+
+        return BandResult(metrics_results)
+
+    def _evaluate_band_binary(self, ctx: EvalContext) -> BandResult:
+        metrics_results = dict()
+        for metric_id, metric in self.metrics_dict.items():
+            metrics_results[metric.id()] = metric.binary(ctx.current_band.bytes, ctx)
 
         return BandResult(metrics_results)
 
@@ -188,27 +160,47 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
             norms[metric_id] = metric.norm(corrected_metrics)
         return norms
 
-    def _combine_metrics(
-            self,
-            original_band_metrics: dict[str, float],
-            corrected_band_metrics: dict[str, float]) -> dict[str, float]:
-        combined_metrics = dict()
-        for metric_id, orig_metric_val in original_band_metrics.items():
-            corrected_metric_val = corrected_band_metrics[metric_id]
-            combined_metric = self.metrics_dict[metric_id].combine(orig_metric_val, corrected_metric_val)
-            combined_metrics[metric_id] = combined_metric
-
-        return combined_metrics
-
     # todo parallelize
     def _perform_topo_corrections(self):
         correction_ctx = copy(self.ctx)
+        for correction in self.corrections:
+            self._perform_topo_correction(correction, correction_ctx)
+
+    def _perform_topo_corrections_parallel(self):
+        task_manager = QgsTaskManager()
+
+        def task_wrapper(task, _correction, _ctx):
+            self._perform_topo_correction(_correction, _ctx)
+
+        _ = self.ctx.luminance
 
         for correction in self.corrections:
-            corrected_image_path = os.path.join(self.ctx.output_file_path, f"{correction.get_name()}.tif")
-            correction_ctx.output_file_path = corrected_image_path
-            correction.process(correction_ctx)
-            self.correction_results[correction.get_name()] = corrected_image_path
+            try:
+                correction_ctx = copy(self.ctx)
+                task = QgsTask.fromFunction(f'Task for correction {correction}', task_wrapper,
+                                            _correction=correction, _ctx=correction_ctx)
+                task_manager.addTask(task)
+            except QgsProcessingException as exc:
+                task_manager.cancelAll()
+                raise RuntimeError(f"Error during performing topocorrection: {exc}")
+
+            if self.ctx.is_canceled():
+                task_manager.cancelAll()
+                return None
+
+        for task in task_manager.tasks():
+            if not task.waitForFinished(10000):
+                raise RuntimeError(f"Timeout exception for task {task.description()}")
+            self.ctx.log(f"Task {task.description()} finished")
+            if self.ctx.is_canceled():
+                task_manager.cancelAll()
+                return None
+
+    def _perform_topo_correction(self, correction, ctx):
+        corrected_image_path = os.path.join(self.ctx.output_file_path, f"{correction.get_name()}.tif")
+        ctx.output_file_path = corrected_image_path
+        correction.process(ctx)
+        self.correction_results[correction.get_name()] = corrected_image_path
 
 
 class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm):
@@ -285,8 +277,9 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             CvMetric(),
             InterQuartileRangeMetric(),
             RelativeMedianDifferenceRangeMetric(),
-            IqrOutliersCountMetric()
-            # RegressionSlopeMetric()
+            IqrOutliersCountMetric(),
+            ThresholdOutliersCountMetric(),
+            RegressionSlopeMetric()
         ]
 
         corrections = [CorrectionClass() for CorrectionClass in DEFAULT_CORRECTIONS]

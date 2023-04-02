@@ -99,7 +99,7 @@ class EvaluationAlgorithm:
     class BandInfo:
         def __init__(self, gdal_band, band_bytes, idx):
             self.gdal_band = gdal_band
-            self.band_bytes = band_bytes
+            self.bytes = band_bytes
             self.idx = idx
 
     def __init__(

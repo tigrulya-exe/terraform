@@ -14,6 +14,7 @@ class QgisExecutionContext:
     qgis_context: QgsProcessingContext
     qgis_feedback: QgsProcessingFeedback
     qgis_params: Dict[str, Any]
+    # todo replace with input_path and band_count
     input_layer: QgsRasterLayer
     dem_layer: QgsRasterLayer
     output_file_path: str = None
