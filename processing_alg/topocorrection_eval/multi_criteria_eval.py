@@ -1,4 +1,5 @@
 import os
+from collections import defaultdict
 from copy import copy
 from dataclasses import dataclass
 from enum import Enum
@@ -10,7 +11,7 @@ from qgis.core import QgsProcessingParameterEnum, QgsProcessingParameterRasterLa
 
 from .eval import EvaluationAlgorithm, MergeStrategy
 from .metrics import StdMetric, CvMetric, InterQuartileRangeMetric, RelativeMedianDifferenceRangeMetric, EvalMetric, \
-    IqrOutliersCountMetric, RegressionSlopeMetric, EvalContext
+    IqrOutliersCountMetric, EvalContext
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext
 from ..topocorrection import DEFAULT_CORRECTIONS
@@ -24,18 +25,13 @@ class BandResult:
 
 
 @dataclass
-class RasterResult:
-    metrics: list[BandResult]
-
-
-@dataclass
 class GroupResult:
     group_idx: int
-    original_result: RasterResult
-    corrected_results: dict[str, RasterResult]
+    original_result: list[BandResult]
+    corrected_results: dict[str, list[BandResult]]
 
     def corrected_metrics(self, band_idx, metric_id) -> list[float]:
-        return [res.metrics[band_idx].metrics[metric_id] for res in self.corrected_results.values()]
+        return [res[band_idx].metrics[metric_id] for res in self.corrected_results.values()]
 
 
 class BandMetricsCombiner:
@@ -110,19 +106,6 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
         return [self.metrics_combiner.combine(scores_per_band)]
 
-    def _evaluate_raster(self, raster_ds, group_idx):
-        return RasterResult(
-            super()._evaluate_raster(raster_ds, group_idx)
-        )
-
-    def _evaluate_band(self, band: EvaluationAlgorithm.BandInfo, group_idx) -> BandResult:
-        metrics_results = dict()
-        for metric_id, metric in self.metrics_dict.items():
-            metric.init(EvalContext(None, None, band.gdal_band))
-            metrics_results[metric.id()] = metric.evaluate(band.band_bytes)
-
-        return BandResult(metrics_results)
-
     def merge(self, results: GroupResult):
         # list of correction_name -> overall score (higher better)
         scores_per_band: list[dict[str, float]] = []
@@ -145,6 +128,58 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
             scores_per_band.append(band_merge_results)
         return scores_per_band
+
+    def _evaluate_group_2(self, group_idx):
+        corrected_metrics_dict: dict[str, list[BandResult]] = defaultdict(list)
+
+        orig_img_result = self._evaluate_raster(self.input_ds, group_idx)
+
+        corrected_ds_dict = {correction: open_img(result_path)
+                             for correction, result_path in self.correction_results.items()}
+
+        for band_idx in range(self.input_ds.RasterCount):
+            orig_band = self._get_masked_band(self.input_ds, band_idx, group_idx)
+            for correction_id, corrected_ds in corrected_ds_dict.items():
+                corrected_band = self._get_masked_band(corrected_ds, band_idx, group_idx)
+                band_result = self._evaluate_band(
+                    EvalContext(orig_band, corrected_band),
+                    group_idx
+                )
+                corrected_metrics_dict[correction_id].append(band_result)
+
+        group_result = GroupResult(group_idx, orig_img_result, corrected_metrics_dict)
+        scores_per_band = self.merge_strategy.merge(group_result)
+
+        return [self.metrics_combiner.combine(scores_per_band)]
+
+    def merge_2(self, results: GroupResult):
+        # list of correction_name -> overall score (higher better)
+        scores_per_band: list[dict[str, float]] = []
+        for band_idx, orig_band_result in enumerate(results.original_result):
+            normalized_metrics: dict[str, list[float]] = self._norm(results, band_idx)
+
+            band_merge_results = dict()
+            for correction_idx, correction_name in enumerate(results.corrected_results.keys()):
+                correction_band_result = 0.0
+                for metric_id, normed_values in normalized_metrics.items():
+                    correction_band_result += self.metrics_dict[metric_id].weight * normed_values[correction_idx]
+
+                band_merge_results[correction_name] = correction_band_result
+
+            scores_per_band.append(band_merge_results)
+        return scores_per_band
+
+    def _evaluate_band(self, ctx: EvalContext, group_idx) -> BandResult:
+        metrics_results = dict()
+        for metric_id, metric in self.metrics_dict.items():
+            metrics_results[metric.id()] = metric.evaluate(ctx.current_band.band_bytes, ctx)
+
+        return BandResult(metrics_results)
+
+    def _get_masked_band(self, ds, band_idx, group_idx) -> EvaluationAlgorithm.BandInfo:
+        orig_band = ds.GetRasterBand(band_idx + 1)
+        orig_band_bytes = orig_band.ReadAsArray().ravel()[self.groups_map == group_idx]
+        return self.BandInfo(orig_band, orig_band_bytes, band_idx)
 
     def _norm(self, group_result: GroupResult, band_idx: int) -> dict[str, list[float]]:
         norms: dict[str, list[float]] = dict()

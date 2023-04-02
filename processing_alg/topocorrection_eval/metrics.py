@@ -3,6 +3,8 @@ from typing import Any
 
 import numpy as np
 
+from processing_alg.topocorrection_eval.eval import EvaluationAlgorithm
+
 
 def minmax(values: list):
     min_val = values[0]
@@ -19,9 +21,8 @@ def minmax(values: list):
 # тут надо наверн передавать не сами ориг байтс, а геттер хз
 @dataclass
 class EvalContext:
-    orig_bytes: list
-    orig_band: Any
-    current_band: Any
+    orig_band: EvaluationAlgorithm.BandInfo
+    current_band: EvaluationAlgorithm.BandInfo
 
     def current_minmax(self):
         return self.band_minmax(self.orig_band)
@@ -40,16 +41,13 @@ class EvalMetric:
         self.norm_func = EvalMetric._revert_norm if is_reduction else EvalMetric._norm
         self.ctx = None
 
-    def init(self, ctx: EvalContext):
-        self.ctx = ctx
-
     def id(self):
         pass
 
     def name(self):
         pass
 
-    def evaluate(self, values: list) -> float:
+    def evaluate(self, values: list, ctx: EvalContext) -> float:
         pass
 
     def combine(self, original: float, corrected: float):
