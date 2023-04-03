@@ -5,6 +5,7 @@ from typing import Dict, Any
 import processing
 from qgis.core import QgsProcessingContext, QgsProcessingFeedback, QgsRasterLayer
 
+from ..computation.gdal_utils import read_band_as_array
 from ..computation.qgis_utils import check_compatible
 
 
@@ -16,15 +17,16 @@ class QgisExecutionContext:
     qgis_params: Dict[str, Any]
     # todo replace with input_path and band_count
     input_layer: QgsRasterLayer
-    dem_layer: QgsRasterLayer
+    _dem_layer: QgsRasterLayer
     output_file_path: str = None
     sza_degrees: float = None
     solar_azimuth_degrees: float = None
     run_parallel: bool = False
     task_timeout: int = 10000
+    keep_in_memory: bool = True
 
     def __post_init__(self):
-        check_compatible(self.input_layer, self.dem_layer)
+        check_compatible(self.input_layer, self._dem_layer)
 
     def is_canceled(self):
         return self.qgis_feedback.isCanceled()
@@ -33,25 +35,33 @@ class QgisExecutionContext:
         return self.qgis_feedback.pushInfo(message)
 
     @property
-    def slope(self):
-        if getattr(self, '_slope', None) is None:
-            self._slope = self.calculate_slope()
-        return self._slope
+    def slope_path(self):
+        if getattr(self, '_slope_path', None) is None:
+            self._slope_path = self.calculate_slope()
+        return self._slope_path
 
     @property
-    def aspect(self):
-        if getattr(self, '_aspect', None) is None:
-            self._aspect = self.calculate_aspect()
-        return self._aspect
+    def aspect_path(self):
+        if getattr(self, '_aspect_path', None) is None:
+            self._aspect_path = self.calculate_aspect()
+        return self._aspect_path
 
     @property
-    def luminance(self):
-        if getattr(self, '_luminance', None) is None:
-            self._luminance = self.calculate_luminance(
-                self.slope,
-                self.aspect
+    def luminance_path(self):
+        if getattr(self, '_luminance_path', None) is None:
+            self._luminance_path = self.calculate_luminance(
+                self.slope_path,
+                self.aspect_path
             )
-        return self._luminance
+        return self._luminance_path
+
+    @property
+    def luminance_bytes(self):
+        if not self.keep_in_memory:
+            return read_band_as_array(self.luminance_path, band_idx=1)
+        if getattr(self, '_luminance_bytes', None) is None:
+            self._luminance_bytes = read_band_as_array(self.luminance_path, band_idx=1)
+        return self._luminance_bytes
 
     def sza_cosine(self):
         return cos(radians(self.sza_degrees))
@@ -63,7 +73,7 @@ class QgisExecutionContext:
         results = processing.run(
             "gdal:slope",
             {
-                'INPUT': self.dem_layer,
+                'INPUT': self._dem_layer,
                 'BAND': 1,
                 # magic number 111120 lol
                 'SCALE': 1,
@@ -98,7 +108,7 @@ class QgisExecutionContext:
         results = processing.run(
             "gdal:aspect",
             {
-                'INPUT': self.dem_layer,
+                'INPUT': self._dem_layer,
                 'BAND': 1,
                 'TRIG_ANGLE': False,
                 'ZERO_FLAT': True,

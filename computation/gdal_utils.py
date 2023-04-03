@@ -50,6 +50,8 @@ def read_band_as_array(path: str, band_idx: int = 1):
     ds = open_img(path)
     return ds.GetRasterBand(band_idx).ReadAsArray()
 
+def read_band_flat(path: str, band_idx: int = 1):
+    return read_band_as_array(path, band_idx=band_idx).ravel()
 
 def raster_linear_regression(x_path: str, y_path: str, x_band: int = 1, y_band: int = 1):
     x_flat = read_band_as_array(x_path, x_band).ravel()

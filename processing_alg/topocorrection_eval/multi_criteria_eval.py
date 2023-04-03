@@ -6,8 +6,10 @@ from enum import Enum
 from statistics import mean, median
 from typing import Any, Dict
 
+import pandas as pd
 from qgis.core import QgsProcessingParameterEnum, QgsProcessingParameterRasterLayer, \
     QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingException, QgsTask, QgsTaskManager
+from tabulate import tabulate
 
 from .eval import EvaluationAlgorithm, MergeStrategy
 from .metrics import StdMetric, CvMetric, InterQuartileRangeMetric, RelativeMedianDifferenceRangeMetric, EvalMetric, \
@@ -112,7 +114,7 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
         group_result = GroupResult(group_idx, corrected_metrics_dict)
 
-        self.ctx.log(str(group_result))
+        # self.ctx.log(str(group_result))
         scores_per_band = self.merge_strategy.merge(group_result)
 
         return [self.metrics_combiner.combine(scores_per_band)]
@@ -172,7 +174,7 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
         def task_wrapper(task, _correction, _ctx):
             self._perform_topo_correction(_correction, _ctx)
 
-        _ = self.ctx.luminance
+        _ = self.ctx.luminance_path
 
         for correction in self.corrections:
             try:
@@ -299,10 +301,11 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         self._print_results(ctx, scores_per_group)
         # no raster output
         return []
-
     # todo add group num in results
+
     def _print_results(self, ctx: QgisExecutionContext, scores_per_group: list[dict[str, float]]):
         for idx, scores_dict in enumerate(scores_per_group):
             ctx.log(f"------------------ Results for group-{idx}:")
-            for correction_name, score in scores_dict.items():
-                ctx.log(f"{correction_name}'s score: {score}")
+            df = pd.DataFrame(scores_dict.items(), columns=["Correction", "Score"])
+            df.sort_values('Score', ascending=False, inplace=True, ignore_index=True)
+            ctx.log(tabulate(df, headers='keys', tablefmt='simple_outline'))

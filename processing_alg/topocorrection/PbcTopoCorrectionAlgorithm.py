@@ -4,7 +4,7 @@ import numpy as np
 
 from .MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation import gdal_utils
+from ...computation.gdal_utils import read_band_flat
 from ...computation.raster_calc import RasterInfo
 
 
@@ -21,8 +21,9 @@ class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
 
         self.h0 = (pi + 2 * radians(ctx.solar_azimuth_degrees)) / (2 * pi)
         self.h = self.raster_calculate(
+            ctx=ctx,
             calc_func=calculate_h,
-            raster_infos=[RasterInfo("slope", ctx.slope, 1)],
+            raster_infos=[RasterInfo("slope", ctx.slope_path, 1)],
             out_file_postfix="pbc_h"
         )
 
@@ -43,10 +44,11 @@ class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
             )
 
         return self.raster_calculate(
+            ctx=ctx,
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance, 1),
+                RasterInfo("luminance", ctx.luminance_path, 1),
                 RasterInfo("h", self.h, 1),
             ],
             out_file_postfix=band_idx
@@ -54,6 +56,10 @@ class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
 
     def calculate_c(self, ctx: QgisExecutionContext, band_idx: int) -> float:
         y_path = self.calculate_y(ctx, band_idx)
-        intercept, slope = gdal_utils.raster_linear_regression(self.x_path, y_path)
-        ctx.qgis_feedback.pushInfo(f'{(intercept, slope)}')
+
+        x_bytes = self.x_bytes if ctx.keep_in_memory else read_band_flat(self.x_path)
+        y_bytes = read_band_flat(y_path)
+
+        intercept, slope = np.polynomial.polynomial.polyfit(x_bytes, y_bytes, 1)
+        ctx.log(f'{(intercept, slope)}')
         return slope / intercept

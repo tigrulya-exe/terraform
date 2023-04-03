@@ -1,6 +1,7 @@
 import os
 import random
 import tempfile
+import time
 from typing import Dict, Any
 
 import processing
@@ -36,16 +37,12 @@ class TopoCorrectionAlgorithm:
         result_bands = self._process_parallel(ctx) if ctx.run_parallel else self._process_sequentially(ctx)
 
         # todo change to just run without load
-        results = processing.runAndLoadResults(
+        results = processing.run(
             "gdal:merge",
             {
                 'INPUT': result_bands,
                 'PCT': False,
                 'SEPARATE': True,
-                'NODATA_INPUT': None,
-                'NODATA_OUTPUT': None,
-                'OPTIONS': '',
-                'EXTRA': '',
                 'DATA_TYPE': 5,
                 'OUTPUT': ctx.output_file_path
             },
@@ -53,7 +50,6 @@ class TopoCorrectionAlgorithm:
             context=ctx.qgis_context
         )
 
-        ctx.log(f"{self.get_name()} correction finished")
         return results
 
     def _process_parallel(self, ctx: QgisExecutionContext):
@@ -63,7 +59,7 @@ class TopoCorrectionAlgorithm:
             self.process_band(_ctx, _band_idx)
 
         # eagerly compute slope, aspect and luminance
-        _ = ctx.luminance
+        _ = ctx.luminance_path
 
         for band_idx in range(ctx.input_layer.bandCount()):
             try:
@@ -111,11 +107,21 @@ class TopoCorrectionAlgorithm:
             f'{self.get_name()}_{self.salt}_{postfix}.tif'
         )
 
-    def raster_calculate(self, calc_func, raster_infos: list[RasterInfo], out_file_postfix=''):
+    def raster_calculate(self, ctx: QgisExecutionContext, calc_func, raster_infos: list[RasterInfo],
+                         out_file_postfix=''):
+        if ctx.is_canceled():
+            raise RuntimeError("Canceled")
+
         out_path = self.output_file_path(out_file_postfix)
+
+        calc_start = time.process_time_ns()
         self.calc.calculate(
             func=calc_func,
             output_path=out_path,
             raster_infos=raster_infos
         )
+        calc_end = time.process_time_ns()
+
+        ctx.log(f"Time for band {raster_infos[0].band}: {(calc_end - calc_start) / 1000000} ms")
+
         return out_path

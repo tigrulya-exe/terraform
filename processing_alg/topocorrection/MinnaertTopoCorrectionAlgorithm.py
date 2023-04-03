@@ -1,8 +1,8 @@
 import numpy as np
 
+from ...computation.gdal_utils import read_band_flat
 from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation import gdal_utils
 from ...computation.raster_calc import RasterInfo
 
 
@@ -13,7 +13,12 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
 
     def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
-        self.x_path = self.calculate_x(ctx)
+
+        x_path = self.calculate_x(ctx)
+        if ctx.keep_in_memory:
+            self.x_bytes = read_band_flat(x_path, band_idx=1)
+        else:
+            self.x_path = x_path
 
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         k = self.calculate_k(ctx, band_idx)
@@ -31,18 +36,23 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             return input_band * np.power(quotient, k)
 
         return self.raster_calculate(
+            ctx=ctx,
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance, 1)
+                RasterInfo("luminance", ctx.luminance_path, 1)
             ],
             out_file_postfix=band_idx
         )
 
     def calculate_k(self, ctx: QgisExecutionContext, band_idx: int):
         y_path = self.calculate_y(ctx, band_idx)
-        intercept, slope = gdal_utils.raster_linear_regression(self.x_path, y_path)
-        ctx.qgis_feedback.pushInfo(f'{(intercept, slope)}')
+
+        x_bytes = self.x_bytes if ctx.keep_in_memory else read_band_flat(self.x_path)
+        y_bytes = read_band_flat(y_path)
+
+        intercept, slope = np.polynomial.polynomial.polyfit(x_bytes, y_bytes, 1)
+        ctx.log(f'{(intercept, slope)}')
         return slope
 
     def calculate_x(self, ctx: QgisExecutionContext) -> str:
@@ -57,10 +67,11 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             )
 
         return self.raster_calculate(
+            ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("luminance", ctx.luminance, 1),
-                RasterInfo("slope", ctx.slope, 1)
+                RasterInfo("luminance", ctx.luminance_path, 1),
+                RasterInfo("slope", ctx.slope_path, 1)
             ],
             out_file_postfix="minnaert_x"
         )
@@ -77,10 +88,11 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             )
 
         return self.raster_calculate(
+            ctx=ctx,
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("slope", ctx.slope, 1)
+                RasterInfo("slope", ctx.slope_path, 1)
             ],
             out_file_postfix=f"minnaert_y_{band_idx}"
         )

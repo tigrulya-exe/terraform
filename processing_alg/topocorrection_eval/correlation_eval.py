@@ -182,7 +182,7 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
         alg = CorrelationEvaluationAlgorithm(
             ctx,
             merge_strategy,
-            ctx.luminance,
+            ctx.luminance_path,
             bins,
             group_ids_path,
         )

@@ -42,18 +42,14 @@ from qgis.core import (QgsProcessingContext,
                        QgsProcessingParameterRasterDestination)
 from qgis.core import QgsProcessingParameterBoolean
 
-from ..topocorrection import DEFAULT_CORRECTIONS
 from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from .TopoCorrectionPostProcessor import TopoCorrectionPostProcessor
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
+from ..topocorrection import DEFAULT_CORRECTIONS
 from ...computation.qgis_utils import add_layer_to_load
 
 
-# from processing.core.ProcessingConfig import ProcessingConfig
-# from processing.script import ScriptUtils
-# print(ProcessingConfig.getSetting('SCRIPTS_FOLDERS'))
-# print(ScriptUtils.defaultScriptsFolder())
 class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
     class AuxiliaryLayers(Enum):
         ASPECT = 0
@@ -170,6 +166,14 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterRasterDestination(
                 'OUTPUT',
+                self.tr('Result output'),
+                createByDefault=True
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterRasterDestination(
+                'OUTPUT',
                 self.tr('Result output')
             )
         )
@@ -252,6 +256,8 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
 
         # add validation
         results = self.algorithms[correction_name].process(ctx)
+
+        add_layer_to_load(context, results['OUTPUT'], "Merged result")
 
         # todo: change band names even without load on completion
         if context.willLoadLayerOnCompletion(results['OUTPUT']):

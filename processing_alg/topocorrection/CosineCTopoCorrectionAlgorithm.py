@@ -14,7 +14,7 @@ class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
         # todo add validation
-        self.luminance_mean = gdal_utils.compute_band_means(ctx.luminance)[0]
+        self.luminance_mean = gdal_utils.compute_band_means(ctx.luminance_path)[0]
 
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         def calculate(**kwargs):
@@ -29,10 +29,11 @@ class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             ))
 
         return self.raster_calculate(
+            ctx=ctx,
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance, 1),
+                RasterInfo("luminance", ctx.luminance_path, 1),
             ],
             out_file_postfix=band_idx
         )

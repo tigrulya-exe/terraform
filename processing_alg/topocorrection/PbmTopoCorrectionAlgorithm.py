@@ -26,11 +26,12 @@ class PbmTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
             )
 
         return self.raster_calculate(
+            ctx=ctx,
             calc_func=calculate,
             raster_infos=[
                 RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
-                RasterInfo("luminance", ctx.luminance, 1),
-                RasterInfo("slope", ctx.slope, 1)
+                RasterInfo("luminance", ctx.luminance_path, 1),
+                RasterInfo("slope", ctx.slope_path, 1)
             ],
             out_file_postfix=band_idx
         )
