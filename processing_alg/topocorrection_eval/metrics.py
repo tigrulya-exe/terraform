@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import numpy as np
+from pandas import DataFrame
 
 from ...processing_alg.topocorrection_eval.eval import EvaluationAlgorithm
 
@@ -24,9 +25,6 @@ class EvalContext:
     orig_band: EvaluationAlgorithm.BandInfo
     orig_metrics: dict[str, float]
 
-    def current_minmax(self):
-        return self.band_minmax(self.orig_band)
-
     def orig_minmax(self):
         return self.band_minmax(self.orig_band)
 
@@ -41,7 +39,7 @@ class EvalContext:
 class EvalMetric:
     def __init__(self, is_reduction=True, weight=1.0):
         self.weight = weight
-        self.norm_func = EvalMetric._revert_norm if is_reduction else EvalMetric._norm
+        self.is_reduction = is_reduction
 
     def id(self):
         pass
@@ -56,20 +54,13 @@ class EvalMetric:
         return self.combine(self.unary(values), ctx.orig_metric(self))
 
     def combine(self, original: float, corrected: float):
-        return (corrected - original) / original
+        return corrected if original == 0 else (corrected - original) / original
 
     # norm all values to [0, 1] range
-    def norm(self, metrics: list[float]) -> list[float]:
-        min_val, max_val = minmax(metrics)
-        return [self.norm_func(metric, min_val, max_val) for metric in metrics]
-
-    @staticmethod
-    def _norm(metric, min_val, max_val):
-        return (metric - min_val) / (max_val - min_val)
-
-    @staticmethod
-    def _revert_norm(metric, min_val, max_val):
-        return 1 - EvalMetric._norm(metric, min_val, max_val)
+    def norm(self, metrics: DataFrame) -> DataFrame:
+        metrics_min = metrics.min()
+        normalized_df = (metrics - metrics_min) / (metrics.max() - metrics_min)
+        return 1 - normalized_df if self.is_reduction else normalized_df
 
 
 class StdMetric(EvalMetric):
@@ -124,7 +115,7 @@ class RelativeMedianDifferenceRangeMetric(EvalMetric):
         return np.median(values)
 
     def combine(self, original: float, corrected: float):
-        return abs(corrected - original) / original
+        return abs(corrected) if original == 0 else abs(corrected - original) / original
 
 
 class OutliersCountMetric(EvalMetric):
@@ -164,7 +155,7 @@ class ThresholdOutliersCountMetric(OutliersCountMetric):
 
     def _outliers_filter(self, values, ctx: EvalContext):
         self._init_thresholds(ctx)
-        return np.logical_and(self.min_threshold < values, values < self.max_threshold)
+        return np.logical_and(self.min_threshold >= values, values >= self.max_threshold)
 
 
 class IqrOutliersCountMetric(OutliersCountMetric):
@@ -178,7 +169,7 @@ class IqrOutliersCountMetric(OutliersCountMetric):
         q1, q3 = np.percentile(values, [25, 75])
         min_threshold = q1 - (q3 - q1)
         max_threshold = q3 + (q3 - q1)
-        return np.logical_and(min_threshold < values, values < max_threshold)
+        return np.logical_and(min_threshold >= values, values >= max_threshold)
 
 
 class RegressionSlopeMetric(EvalMetric):

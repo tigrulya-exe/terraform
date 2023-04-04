@@ -116,6 +116,9 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
 
     def _get_output_dir(self, qgis_params, qgis_context):
         output_directory = self.parameterAsString(qgis_params, 'OUTPUT_DIR', qgis_context)
+        if output_directory is None:
+            return None
+
         if not os.path.exists(output_directory):
             os.makedirs(output_directory)
         return output_directory

@@ -135,16 +135,20 @@ class EvaluationAlgorithm:
     def _evaluate_raster(self, raster_ds, group_idx):
         band_results = []
         for band_idx in range(raster_ds.RasterCount):
-            original_band = raster_ds.GetRasterBand(band_idx + 1)
-            band_bytes = original_band.ReadAsArray().ravel()[self.groups_map == group_idx]
+            original_band = self._get_masked_band(raster_ds, band_idx, group_idx)
 
-            band_result = self._evaluate_band(self.BandInfo(original_band, band_bytes, band_idx), group_idx)
+            band_result = self._evaluate_band(original_band, group_idx)
             band_results.append(band_result)
 
             if self.ctx.is_canceled():
                 # todo
                 return None
         return band_results
+
+    def _get_masked_band(self, ds, band_idx, group_idx) -> BandInfo:
+        orig_band = ds.GetRasterBand(band_idx + 1)
+        orig_band_bytes = orig_band.ReadAsArray().ravel()[self.groups_map == group_idx]
+        return self.BandInfo(orig_band, orig_band_bytes, band_idx)
 
     def _evaluate_band(self, band: BandInfo, group_idx) -> Any:
         pass

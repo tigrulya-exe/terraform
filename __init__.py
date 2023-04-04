@@ -38,6 +38,7 @@ def classFactory(iface):  # pylint: disable=invalid-name
     from .dependencies import ensure_import
     ensure_import("numpy_groupies")
     ensure_import("tabulate")
+    ensure_import("xlsxwriter")
 
     from .terraform import TerraformTopoCorrectionPlugin
     return TerraformTopoCorrectionPlugin(iface)

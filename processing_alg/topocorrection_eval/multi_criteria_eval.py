@@ -3,10 +3,12 @@ from collections import defaultdict
 from copy import copy
 from dataclasses import dataclass
 from enum import Enum
-from statistics import mean, median
 from typing import Any, Dict
 
 import pandas as pd
+from pandas import DataFrame, Series, ExcelWriter
+from pandas.core.groupby import SeriesGroupBy
+from qgis._core import QgsProcessingParameterFolderDestination
 from qgis.core import QgsProcessingParameterEnum, QgsProcessingParameterRasterLayer, \
     QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingException, QgsTask, QgsTaskManager
 from tabulate import tabulate
@@ -22,20 +24,11 @@ from ...computation.gdal_utils import open_img
 
 
 @dataclass
-class BandResult:
-    metrics: dict[str, float]
-
-    def __str__(self) -> str:
-        return f"{self.metrics}\n"
-
-
-@dataclass
 class GroupResult:
     group_idx: int
-    corrected_results: dict[str, list[BandResult]]
-
-    def corrected_metrics(self, band_idx, metric_id) -> list[float]:
-        return [res[band_idx].metrics[metric_id] for res in self.corrected_results.values()]
+    score_per_correction: DataFrame
+    extended_metrics: DataFrame
+    normalized_metrics: DataFrame
 
 
 class BandMetricsCombiner:
@@ -45,32 +38,23 @@ class BandMetricsCombiner:
         MEDIAN = 'median'
         MEAN = 'mean'
         SUM = 'sum'
-        NORM_SUM = 'normalised_sum'
 
     DEFAULT_STRATEGIES = {
-        Strategy.MAX: lambda values: max(values),
-        Strategy.MIN: lambda values: min(values),
-        Strategy.MEAN: lambda values: mean(values),
-        Strategy.MEDIAN: lambda values: median(values),
-        Strategy.SUM: lambda values: sum(values),
-        Strategy.NORM_SUM: lambda values: sum(values) / len(values),
+        Strategy.MAX: lambda values: values.max(),
+        Strategy.MIN: lambda values: values.min(),
+        Strategy.MEAN: lambda values: values.mean(),
+        Strategy.MEDIAN: lambda values: values.median(),
+        Strategy.SUM: lambda values: values.sum()
     }
 
     def __init__(self, combine_strategy: Strategy = None):
         self.combine_strategy = combine_strategy
 
-    def combine(self, scores_per_band: list[dict[str, float]]) -> dict[str, float]:
-        score_per_metric = dict()
-        # todo add validation
-        metric_ids = scores_per_band[0].keys()
+    def combine(self, scores_per_band: Series) -> Series:
+        scores_by_correction = scores_per_band.groupby(level=0)
+        return self._combine_single_metric(scores_by_correction)
 
-        for metric_id in metric_ids:
-            metric_vals = [scores[metric_id] for scores in scores_per_band]
-            score_per_metric[metric_id] = self._combine_single_metric(metric_id, metric_vals)
-
-        return score_per_metric
-
-    def _combine_single_metric(self, metric_id: str, values: list[float]) -> float:
+    def _combine_single_metric(self, values: SeriesGroupBy) -> Series:
         if self.combine_strategy is None:
             raise ValueError()
 
@@ -96,14 +80,15 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
         return super().evaluate()
 
     def _evaluate_group(self, group_idx):
-        corrected_metrics_dict: dict[str, list[BandResult]] = defaultdict(list)
+        column_names = self.metrics_dict.keys()
+        corrected_metrics_dict: dict[str, list[list[float]]] = defaultdict(list)
 
         corrected_ds_dict = {correction: open_img(result_path)
                              for correction, result_path in self.correction_results.items()}
 
         for band_idx in range(self.input_ds.RasterCount):
             orig_band = self._get_masked_band(self.input_ds, band_idx, group_idx)
-            orig_metrics = self._evaluate_band_unary(orig_band).metrics
+            orig_metrics = self._evaluate_band_unary(orig_band)
 
             for correction_id, corrected_ds in corrected_ds_dict.items():
                 corrected_band = self._get_masked_band(corrected_ds, band_idx, group_idx)
@@ -112,55 +97,41 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
                 )
                 corrected_metrics_dict[correction_id].append(band_result)
 
-        group_result = GroupResult(group_idx, corrected_metrics_dict)
+        band_dfs = {correction_name: pd.DataFrame(metrics, columns=column_names) for correction_name, metrics in
+                    corrected_metrics_dict.items()}
+        group_df = pd.concat(band_dfs)
 
-        # self.ctx.log(str(group_result))
-        scores_per_band = self.merge_strategy.merge(group_result)
+        metrics_per_correction_band, normalized_metrics = self.merge_strategy.merge(group_df)
+        scores_per_correction = self.metrics_combiner.combine(metrics_per_correction_band)
 
-        return [self.metrics_combiner.combine(scores_per_band)]
+        scores_per_correction_df = scores_per_correction.to_frame(name='Score')
 
-    def merge(self, results: GroupResult):
-        # list of correction_name -> overall score (higher better) for each band
-        scores_per_band: list[dict[str, float]] = []
-        for band_idx in range(self.input_ds.RasterCount):
-            normalized_metrics: dict[str, list[float]] = self._norm(results, band_idx)
+        return [GroupResult(group_idx, scores_per_correction_df, group_df, normalized_metrics)]
 
-            band_scores_per_correction = dict()
-            for correction_idx, correction_name in enumerate(results.corrected_results.keys()):
-                band_score = 0.0
-                for metric_id, normed_values in normalized_metrics.items():
-                    band_score += self.metrics_dict[metric_id].weight * normed_values[correction_idx]
-
-                band_scores_per_correction[correction_name] = band_score
-
-            scores_per_band.append(band_scores_per_correction)
-        return scores_per_band
-
-    def _evaluate_band_unary(self, band: EvaluationAlgorithm.BandInfo) -> BandResult:
+    def _evaluate_band_unary(self, band: EvaluationAlgorithm.BandInfo) -> dict[str, float]:
         metrics_results = dict()
         for metric_id, metric in self.metrics_dict.items():
             metrics_results[metric.id()] = metric.unary(band.bytes)
 
-        return BandResult(metrics_results)
+        return metrics_results
 
-    def _evaluate_band_binary(self, ctx: EvalContext) -> BandResult:
-        metrics_results = dict()
+    def _evaluate_band_binary(self, ctx: EvalContext) -> list[float]:
+        return [metric.binary(ctx.current_band.bytes, ctx) for metric in self.metrics_dict.values()]
+
+    def merge(self, metrics: DataFrame):
+        weights = [metric.weight for metric in self.metrics_dict.values()]
+        normalized_metrics: DataFrame = self._norm(metrics)
+        return (normalized_metrics * weights).sum(1), normalized_metrics
+
+    def _norm(self, group_result: DataFrame) -> DataFrame:
+        metrics_min = group_result.min()
+        normalized_df = (group_result - metrics_min) / (group_result.max() - metrics_min)
+
         for metric_id, metric in self.metrics_dict.items():
-            metrics_results[metric.id()] = metric.binary(ctx.current_band.bytes, ctx)
+            if metric.is_reduction:
+                normalized_df[metric_id] = 1 - normalized_df[metric_id]
 
-        return BandResult(metrics_results)
-
-    def _get_masked_band(self, ds, band_idx, group_idx) -> EvaluationAlgorithm.BandInfo:
-        orig_band = ds.GetRasterBand(band_idx + 1)
-        orig_band_bytes = orig_band.ReadAsArray().ravel()[self.groups_map == group_idx]
-        return self.BandInfo(orig_band, orig_band_bytes, band_idx)
-
-    def _norm(self, group_result: GroupResult, band_idx: int) -> dict[str, list[float]]:
-        norms: dict[str, list[float]] = dict()
-        for metric_id, metric in self.metrics_dict.items():
-            corrected_metrics = group_result.corrected_metrics(band_idx, metric_id)
-            norms[metric_id] = metric.norm(corrected_metrics)
-        return norms
+        return normalized_df
 
     # todo parallelize
     def _perform_topo_corrections(self):
@@ -232,7 +203,7 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             self.tr('Strategy for band scores merging'),
             options=[s for s in BandMetricsCombiner.Strategy],
             allowMultiple=False,
-            defaultValue='normalised_sum',
+            defaultValue='max',
             usesStaticStrings=True
         )
         self._additional_param(metric_merge_strategy_param)
@@ -264,6 +235,19 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         Returns a localised short help string for the algorithm.
         """
         return self.tr('TODO')
+
+    def add_output_param(self):
+        self.addParameter(
+            QgsProcessingParameterFolderDestination(
+                'OUTPUT_DIR',
+                self.tr('Output directory'),
+                optional=True,
+                defaultValue=None
+            )
+        )
+
+        return 'OUTPUT_DIR'
+
 
     def processAlgorithmInternal(
             self,
@@ -298,14 +282,55 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         )
 
         scores_per_group = algorithm.evaluate()
-        self._print_results(ctx, scores_per_group)
+        output_dir = self._get_output_dir(qgis_params=parameters, qgis_context=ctx.qgis_context)
+        self._print_results(ctx, scores_per_group, output_dir)
         # no raster output
         return []
-    # todo add group num in results
 
-    def _print_results(self, ctx: QgisExecutionContext, scores_per_group: list[dict[str, float]]):
-        for idx, scores_dict in enumerate(scores_per_group):
-            ctx.log(f"------------------ Results for group-{idx}:")
-            df = pd.DataFrame(scores_dict.items(), columns=["Correction", "Score"])
-            df.sort_values('Score', ascending=False, inplace=True, ignore_index=True)
-            ctx.log(tabulate(df, headers='keys', tablefmt='simple_outline'))
+    def _print_results(
+            self,
+            ctx: QgisExecutionContext,
+            scores_per_group: list[GroupResult],
+            output_directory_path: str = None):
+        for group_result in scores_per_group:
+            ctx.log(f"------------------ Results for group-{group_result.group_idx}:")
+            group_result.score_per_correction.sort_values(by='Score', ascending=False, inplace=True)
+            formatted_table = tabulate(group_result.score_per_correction, headers='keys', tablefmt='simple_outline')
+            ctx.log(formatted_table)
+
+            if output_directory_path is not None:
+                out_path = os.path.join(output_directory_path, f"group_{group_result.group_idx}.xlsx")
+                self._export_to_excel(out_path, group_result)
+
+    def _export_to_excel(self, output_path: str, group_result: GroupResult):
+        writer = pd.ExcelWriter(output_path, engine='xlsxwriter')
+
+        self._export_excel_sheet(writer, group_result.score_per_correction, 'Scores')
+        self._export_excel_sheet(writer, group_result.extended_metrics, 'Metrics', column_offset=2)
+        self._export_excel_sheet(writer, group_result.normalized_metrics, 'Normalized metrics', column_offset=2)
+
+        writer.save()
+
+    def _export_excel_sheet(self, writer: ExcelWriter, df: DataFrame, sheet_name: str, column_offset=1):
+        worksheet = writer.book.add_worksheet(sheet_name)
+        writer.sheets[sheet_name] = worksheet
+
+        df.to_excel(writer, sheet_name=sheet_name, startrow=1, header=False)
+
+        # Add a header format.
+        header_format = writer.book.add_format({
+            'bold': True,
+            'text_wrap': True,
+            'valign': 'top',
+            'fg_color': '#D7E4BC',
+            'border': 1})
+
+        # worksheet.write(0, 1, "Band", header_format)
+        worksheet.set_column(0, 0, 20)
+
+        # Write the column headers with the defined format.
+        for col_num, column in enumerate(df.columns.values):
+            column_length = max(df[column].astype(str).map(len).max(), len(column))
+            worksheet.write(0, col_num + column_offset, column, header_format)
+            worksheet.set_column(col_num + column_offset, col_num + column_offset, column_length)
+
