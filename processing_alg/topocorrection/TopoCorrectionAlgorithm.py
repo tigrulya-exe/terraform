@@ -108,7 +108,8 @@ class TopoCorrectionAlgorithm:
         )
 
     def raster_calculate(self, ctx: QgisExecutionContext, calc_func, raster_infos: list[RasterInfo],
-                         out_file_postfix=''):
+                         out_file_postfix='',
+                         **kwargs):
         if ctx.is_canceled():
             raise RuntimeError("Canceled")
 
@@ -118,7 +119,8 @@ class TopoCorrectionAlgorithm:
         self.calc.calculate(
             func=calc_func,
             output_path=out_path,
-            raster_infos=raster_infos
+            raster_infos=raster_infos,
+            **kwargs
         )
         calc_end = time.process_time_ns()
 

@@ -22,7 +22,8 @@ class SimpleRasterCalc:
             hideNoData: bool = False,
             overwrite_out: bool = False,
             debug: bool = True,
-            NoDataValue=None):
+            NoDataValue=None,
+            **kwargs):
         datasets_by_path = {}
         for info in raster_infos:
             ds = datasets_by_path.get(info.path)
@@ -244,7 +245,7 @@ class SimpleRasterCalc:
 
                     calc_func_kw_args[raster_info.uid] = block
 
-                calc_res = func(**calc_func_kw_args)
+                calc_res = func(**calc_func_kw_args, **kwargs)
 
                 # Propagate nodata values (set nodata cells to zero
                 # then add nodata value to these cells).

@@ -58,4 +58,3 @@ class TerraformProcessingAlgorithm(QgsProcessingAlgorithm):
     def _additional_param(self, param):
         param.setFlags(param.flags() | QgsProcessingParameterDefinition.FlagAdvanced)
         self.addParameter(param)
-

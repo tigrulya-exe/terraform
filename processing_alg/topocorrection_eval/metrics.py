@@ -41,10 +41,12 @@ class EvalMetric:
         self.weight = weight
         self.is_reduction = is_reduction
 
-    def id(self):
+    @staticmethod
+    def id():
         pass
 
-    def name(self):
+    @staticmethod
+    def name():
         pass
 
     def unary(self, values: list) -> float:
@@ -64,10 +66,12 @@ class EvalMetric:
 
 
 class StdMetric(EvalMetric):
-    def id(self):
+    @staticmethod
+    def id():
         return "std_reduction"
 
-    def name(self):
+    @staticmethod
+    def name():
         return "Mean reflectance reduction"
 
     def unary(self, values: list) -> float:
@@ -75,10 +79,12 @@ class StdMetric(EvalMetric):
 
 
 class CvMetric(EvalMetric):
-    def id(self):
+    @staticmethod
+    def id():
         return "cv_reduction"
 
-    def name(self):
+    @staticmethod
+    def name():
         return "Coefficient of variation reduction"
 
     def unary(self, values: list) -> float:
@@ -87,10 +93,12 @@ class CvMetric(EvalMetric):
 
 # todo add iqr outliers metric https://www.scribbr.com/statistics/outliers/
 class InterQuartileRangeMetric(EvalMetric):
-    def id(self):
+    @staticmethod
+    def id():
         return "iqr_reduction"
 
-    def name(self):
+    @staticmethod
+    def name():
         return "Inter quartile range reduction"
 
     @staticmethod
@@ -104,10 +112,12 @@ class InterQuartileRangeMetric(EvalMetric):
 
 
 class RelativeMedianDifferenceRangeMetric(EvalMetric):
-    def id(self):
+    @staticmethod
+    def id():
         return "relative_median_difference"
 
-    def name(self):
+    @staticmethod
+    def name():
         return "Relative median difference"
 
     # @functools.cache
@@ -136,10 +146,12 @@ class OutliersCountMetric(EvalMetric):
 
 
 class ThresholdOutliersCountMetric(OutliersCountMetric):
-    def id(self):
+    @staticmethod
+    def id():
         return "outliers_threshold"
 
-    def name(self):
+    @staticmethod
+    def name():
         return "Number of outliers (static thresholds)"
 
     def __init__(self, min_threshold=None, max_threshold=None):
@@ -159,10 +171,12 @@ class ThresholdOutliersCountMetric(OutliersCountMetric):
 
 
 class IqrOutliersCountMetric(OutliersCountMetric):
-    def id(self):
+    @staticmethod
+    def id():
         return "outliers_iqr"
 
-    def name(self):
+    @staticmethod
+    def name():
         return "Number of outliers - elements out of the [Q1 - IQR; Q3 + IQR] interval"
 
     def _outliers_filter(self, values, ctx: EvalContext):
@@ -173,10 +187,12 @@ class IqrOutliersCountMetric(OutliersCountMetric):
 
 
 class RegressionSlopeMetric(EvalMetric):
-    def id(self):
+    @staticmethod
+    def id():
         return "correlation_regression_slope"
 
-    def name(self):
+    @staticmethod
+    def name():
         return "Slope of the regression between band values and solar incidence angle"
 
     def unary(self, values: list) -> float:
@@ -189,3 +205,13 @@ class RegressionSlopeMetric(EvalMetric):
         _, slope = np.polynomial.polynomial.polyfit(values, ctx.orig_band.bytes, 1)
         return abs(slope)
 
+
+DEFAULT_METRICS = [
+    StdMetric,
+    CvMetric,
+    InterQuartileRangeMetric,
+    RelativeMedianDifferenceRangeMetric,
+    ThresholdOutliersCountMetric,
+    IqrOutliersCountMetric,
+    RegressionSlopeMetric
+]

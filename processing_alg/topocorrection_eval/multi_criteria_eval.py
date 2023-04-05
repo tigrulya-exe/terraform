@@ -8,14 +8,13 @@ from typing import Any, Dict
 import pandas as pd
 from pandas import DataFrame, Series, ExcelWriter
 from pandas.core.groupby import SeriesGroupBy
-from qgis._core import QgsProcessingParameterFolderDestination
-from qgis.core import QgsProcessingParameterEnum, QgsProcessingParameterRasterLayer, \
+from qgis.core import QgsProcessingParameterFolderDestination, QgsProcessingParameterEnum, \
+    QgsProcessingParameterRasterLayer, \
     QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingException, QgsTask, QgsTaskManager
 from tabulate import tabulate
 
 from .eval import EvaluationAlgorithm, MergeStrategy
-from .metrics import StdMetric, CvMetric, InterQuartileRangeMetric, RelativeMedianDifferenceRangeMetric, EvalMetric, \
-    IqrOutliersCountMetric, EvalContext, RegressionSlopeMetric, ThresholdOutliersCountMetric
+from .metrics import EvalMetric, EvalContext, DEFAULT_METRICS
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext
 from ..topocorrection import DEFAULT_CORRECTIONS
@@ -177,6 +176,11 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
 
 class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm):
+    def __init__(self):
+        super().__init__()
+        self.correction_classess = DEFAULT_CORRECTIONS
+        self.metric_classes = DEFAULT_METRICS
+
     def initAlgorithm(self, config=None):
         super().initAlgorithm(config)
 
@@ -195,6 +199,26 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
                 self.tr('Solar azimuth (in degrees)'),
                 defaultValue=177.744663052425,
                 type=QgsProcessingParameterNumber.Double
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                'TOPO_CORRECTION_ALGORITHMS',
+                self.tr('Topographic correction algorithms to evaluate'),
+                options=[c.get_name() for c in self.correction_classess],
+                allowMultiple=True,
+                defaultValue=[idx for idx, _ in enumerate(self.correction_classess)]
+            )
+        )
+
+        self.addParameter(
+            QgsProcessingParameterEnum(
+                'METRICS',
+                self.tr('Metrics'),
+                options=[c.name() for c in self.metric_classes],
+                allowMultiple=True,
+                defaultValue=[idx for idx, _ in enumerate(self.metric_classes)]
             )
         )
 
@@ -248,7 +272,6 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
 
         return 'OUTPUT_DIR'
 
-
     def processAlgorithmInternal(
             self,
             parameters: Dict[str, Any],
@@ -258,25 +281,17 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         ctx.solar_azimuth_degrees = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', ctx.qgis_context)
 
         metric_merge_strategy = self.parameterAsEnumString(parameters, 'METRIC_MERGE_STRATEGY', ctx.qgis_context)
-        metrics = [
-            StdMetric(),
-            CvMetric(),
-            InterQuartileRangeMetric(),
-            RelativeMedianDifferenceRangeMetric(),
-            IqrOutliersCountMetric(),
-            ThresholdOutliersCountMetric(),
-            RegressionSlopeMetric()
-        ]
-
-        corrections = [CorrectionClass() for CorrectionClass in DEFAULT_CORRECTIONS]
 
         group_ids_layer = self.parameterAsRasterLayer(parameters, 'CLASSIFICATION_MAP', ctx.qgis_context)
         group_ids_path = None if group_ids_layer is None else group_ids_layer.source()
 
+        metric_ids = self.parameterAsEnums(parameters, 'METRICS', ctx.qgis_context)
+        correction_ids = self.parameterAsEnums(parameters, 'TOPO_CORRECTION_ALGORITHMS', ctx.qgis_context)
+
         algorithm = MultiCriteriaEvalAlgorithm(
             ctx,
-            metrics,
-            corrections,
+            [self.metric_classes[idx]() for idx in metric_ids],
+            [self.correction_classess[idx]() for idx in correction_ids],
             BandMetricsCombiner.Strategy(metric_merge_strategy),
             group_ids_path
         )
@@ -333,4 +348,3 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             column_length = max(df[column].astype(str).map(len).max(), len(column))
             worksheet.write(0, col_num + column_offset, column, header_format)
             worksheet.set_column(col_num + column_offset, col_num + column_offset, column_length)
-

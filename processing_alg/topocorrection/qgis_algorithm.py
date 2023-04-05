@@ -43,6 +43,7 @@ from qgis.core import (QgsProcessingContext,
 from qgis.core import QgsProcessingParameterBoolean
 
 from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
+from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from .TopoCorrectionPostProcessor import TopoCorrectionPostProcessor
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
@@ -59,9 +60,9 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
     def __init__(self):
         super().__init__()
         # todo dynamically scan directory
-        self.algorithms = self.find_algorithms()
+        self.algorithms = self._find_algorithms()
 
-    def find_algorithms(self):
+    def _find_algorithms(self) -> dict[str, TopoCorrectionAlgorithm]:
         algorithms = DEFAULT_CORRECTIONS
         algorithms_dict = dict()
         for algorithm in algorithms:
