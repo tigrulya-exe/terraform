@@ -79,7 +79,7 @@ class CorrelationEvaluationAlgorithm(EvaluationAlgorithm):
             range=[[x_min, x_max], [img_min, img_max]]
         )
 
-        intercept, slope = np.polynomial.polynomial.polyfit(group_luminance_bytes, band_bytes, 1)
+        intercept, slope = np.polynomial.polynomial.polyfit(group_luminance_bytes, band.bytes, 1)
         return CorrelationNodeInfo(
             histogram.T,
             band.gdal_band.GetDescription(),
