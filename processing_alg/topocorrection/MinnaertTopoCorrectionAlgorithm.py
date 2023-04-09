@@ -39,7 +39,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
+                RasterInfo("input", ctx.input_layer_path, band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1)
             ],
             out_file_postfix=band_idx
@@ -91,7 +91,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
+                RasterInfo("input", ctx.input_layer_path, band_idx + 1),
                 RasterInfo("slope", ctx.slope_path, 1)
             ],
             out_file_postfix=f"minnaert_y_{band_idx}"

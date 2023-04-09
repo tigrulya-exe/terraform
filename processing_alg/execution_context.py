@@ -1,4 +1,6 @@
-from dataclasses import dataclass
+import logging
+import os
+from dataclasses import dataclass, field
 from math import radians, cos
 from typing import Dict, Any
 
@@ -7,6 +9,7 @@ from qgis.core import QgsProcessingContext, QgsProcessingFeedback, QgsRasterLaye
 
 from ..computation.gdal_utils import read_band_as_array
 from ..computation.qgis_utils import check_compatible
+from ..dependencies import qgis_path, set_multiprocessing_metadata
 
 
 # todo use simple raster calc in methods instead of qgis raster calc
@@ -24,6 +27,7 @@ class QgisExecutionContext:
     run_parallel: bool = False
     task_timeout: int = 10000
     keep_in_memory: bool = True
+    qgis_path: str = None
 
     def __post_init__(self):
         check_compatible(self.input_layer, self._dem_layer)
@@ -33,6 +37,14 @@ class QgisExecutionContext:
 
     def log(self, message: str):
         return self.qgis_feedback.pushInfo(message)
+
+    @property
+    def input_layer_path(self):
+        return self.input_layer.source()
+
+    @property
+    def input_layer_band_count(self):
+        return self.input_layer.bandCount()
 
     @property
     def slope_path(self):
@@ -168,3 +180,68 @@ class QgisExecutionContext:
         )
         result_path = results['OUTPUT']
         return result_path
+
+
+@dataclass
+class SerializableCorrectionExecutionContext:
+    input_layer_path: str = None
+    input_layer_band_count: int = None
+    slope_path: str = None,
+    aspect_path: str = None,
+    luminance_path: str = None,
+    output_file_path: str = None
+    sza_degrees: float = None
+    solar_azimuth_degrees: float = None
+    run_parallel: bool = False
+    task_timeout: int = 10000
+    keep_in_memory: bool = True
+    qgis_params: Dict[str, Any] = field(default_factory=dict)
+    qgis_path: str = None
+
+    @property
+    def qgis_context(self):
+        return None
+
+    @property
+    def qgis_feedback(self):
+        return None
+
+    @staticmethod
+    def from_ctx(ctx: QgisExecutionContext):
+        luminance_path = ctx.luminance_path
+
+        set_multiprocessing_metadata()
+        return SerializableCorrectionExecutionContext(
+            input_layer_path=ctx.input_layer_path,
+            input_layer_band_count=ctx.input_layer_band_count,
+            slope_path=ctx.slope_path,
+            aspect_path=ctx.aspect_path,
+            luminance_path=luminance_path,
+            output_file_path=ctx.output_file_path,
+            sza_degrees=ctx.sza_degrees,
+            solar_azimuth_degrees=ctx.solar_azimuth_degrees,
+            run_parallel=ctx.run_parallel,
+            task_timeout=ctx.task_timeout,
+            keep_in_memory=ctx.keep_in_memory,
+            qgis_path=qgis_path()
+        )
+
+    @property
+    def luminance_bytes(self):
+        if not self.keep_in_memory:
+            return read_band_as_array(self.luminance_path, band_idx=1)
+        if getattr(self, '_luminance_bytes', None) is None:
+            self._luminance_bytes = read_band_as_array(self.luminance_path, band_idx=1)
+        return self._luminance_bytes
+
+    def sza_cosine(self):
+        return cos(radians(self.sza_degrees))
+
+    def is_canceled(self):
+        return False
+
+    def log(self, message: str):
+        logging.basicConfig(level=logging.INFO,
+                            filename=fr"D:\PyCharmProjects\QgisPlugin\log\log-{os.path.basename(self.output_file_path)}.log",
+                            filemode="w")
+        logging.info(message)

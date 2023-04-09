@@ -1,5 +1,6 @@
 import os
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from copy import copy
 from dataclasses import dataclass
 from enum import Enum
@@ -16,7 +17,7 @@ from tabulate import tabulate
 from .eval import EvaluationAlgorithm, MergeStrategy
 from .metrics import EvalMetric, EvalContext, DEFAULT_METRICS
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
-from ..execution_context import QgisExecutionContext
+from ..execution_context import QgisExecutionContext, SerializableCorrectionExecutionContext
 from ..topocorrection import DEFAULT_CORRECTIONS
 from ..topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ...computation.gdal_utils import open_img
@@ -58,6 +59,12 @@ class BandMetricsCombiner:
             raise ValueError()
 
         return self.DEFAULT_STRATEGIES[self.combine_strategy](values)
+
+
+def topo_correction_entrypoint(ctx, correction, corrected_image_path):
+    ctx.output_file_path = corrected_image_path
+    correction.process(ctx)
+    return corrected_image_path
 
 
 class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
@@ -134,9 +141,19 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
     # todo parallelize
     def _perform_topo_corrections(self):
-        correction_ctx = copy(self.ctx)
-        for correction in self.corrections:
-            self._perform_topo_correction(correction, correction_ctx)
+        correction_ctx = SerializableCorrectionExecutionContext.from_ctx(self.ctx)
+
+        futures = dict()
+        with ProcessPoolExecutor() as executor:
+            for correction in self.corrections:
+                corrected_image_path = os.path.join(self.ctx.output_file_path, f"{correction.get_name()}.tif")
+                correction_future = executor.submit(topo_correction_entrypoint, correction_ctx, correction, corrected_image_path)
+                self.ctx.log(f"Path for {correction.get_name()} is {corrected_image_path}")
+                futures[correction.get_name()] = correction_future
+
+            for correction_name, future in futures.items():
+                self.correction_results[correction_name] = future.result()
+                self.ctx.log(f"get res for {correction_name}")
 
     def _perform_topo_corrections_parallel(self):
         task_manager = QgsTaskManager()

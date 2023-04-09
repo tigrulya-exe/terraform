@@ -1,42 +1,53 @@
 import os
+import platform
 import random
+import sys
 import tempfile
 import time
+from concurrent.futures import ProcessPoolExecutor
+from pathlib import Path
 from typing import Dict, Any
 
 import processing
-from qgis.core import (QgsProcessingException,
-                       QgsTaskManager,
-                       QgsTask)
+from processing.core.Processing import Processing
+from qgis._core import QgsApplication
+from qgis.core import QgsProcessingException
 
-from ..execution_context import QgisExecutionContext
+from ..execution_context import QgisExecutionContext, SerializableCorrectionExecutionContext
 from ...computation.raster_calc import SimpleRasterCalc, RasterInfo
 
 
 class TopoCorrectionAlgorithm:
     def __init__(self):
         self.calc = SimpleRasterCalc()
-        self.task_manager = None
-        self.salt = None
+        self.salt = random.randint(1, 100000)
 
     @staticmethod
     def get_name():
         pass
 
     def init(self, ctx: QgisExecutionContext):
-        self.task_manager = QgsTaskManager()
-        self.salt = random.randint(1, 100000)
+        pass
 
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         pass
 
     def process(self, ctx: QgisExecutionContext) -> Dict[str, Any]:
+
         self.init(ctx)
 
         ctx.log(f"{self.get_name()} correction started: parallel={ctx.run_parallel}")
         result_bands = self._process_parallel(ctx) if ctx.run_parallel else self._process_sequentially(ctx)
 
-        # todo change to just run without load
+        ctx.log(f"start merge results for {self.get_name()}")
+
+        if platform.system() == 'Windows' and ctx.qgis_path is not None:
+            # Initialize QGIS Application
+            qgs = QgsApplication([], False)
+            QgsApplication.setPrefixPath(str(Path(sys.executable).parent.parent), True)
+            QgsApplication.initQgis()
+            Processing.initialize()
+
         results = processing.run(
             "gdal:merge",
             {
@@ -55,48 +66,40 @@ class TopoCorrectionAlgorithm:
     def _process_parallel(self, ctx: QgisExecutionContext):
         result_bands = []
 
-        def task_wrapper(task, _ctx, _band_idx):
-            self.process_band(_ctx, _band_idx)
+        serializable_ctx = SerializableCorrectionExecutionContext.from_ctx(ctx)
 
-        # eagerly compute slope, aspect and luminance
-        _ = ctx.luminance_path
+        futures = []
 
-        for band_idx in range(ctx.input_layer.bandCount()):
-            try:
-                task = QgsTask.fromFunction(f'Task for band {band_idx}', task_wrapper,
-                                            _ctx=ctx, _band_idx=band_idx)
-                self.task_manager.addTask(task)
-            except QgsProcessingException as exc:
-                self.task_manager.cancelAll()
-                raise RuntimeError(f"Error during performing topocorrection: {exc}")
+        # todo handle exceptions from executor
+        with ProcessPoolExecutor() as executor:
+            for band_idx in range(ctx.input_layer_band_count):
+                future = executor.submit(_process_band_wrapper, self, serializable_ctx, band_idx)
+                futures.append(future)
 
-            if ctx.qgis_feedback.isCanceled():
-                self.task_manager.cancelAll()
-                return None
+                if ctx.is_canceled():
+                    [future.cancel() for future in futures]
+                    executor.shutdown(cancel_futures=True)
+                    return None
 
-            result_bands.append(self.output_file_path(str(band_idx)))
+                result_bands.append(self.output_file_path(str(band_idx)))
 
-        for task in self.task_manager.tasks():
-            if not task.waitForFinished(ctx.task_timeout):
-                raise RuntimeError(f"Timeout exception for task {task.description()}")
-            ctx.qgis_feedback.pushInfo(f"Task {task.description()} finished")
-            if ctx.qgis_feedback.isCanceled():
-                self.task_manager.cancelAll()
-                return None
+            for band_idx, future in enumerate(futures):
+                future.result(timeout=ctx.task_timeout)
+                ctx.log(f"Task for band {band_idx + 1} finished")
 
         return result_bands
 
     def _process_sequentially(self, ctx: QgisExecutionContext):
         result_bands = []
 
-        for band_idx in range(ctx.input_layer.bandCount()):
+        for band_idx in range(ctx.input_layer_band_count):
             try:
                 result = self.process_band(ctx, band_idx)
                 result_bands.append(result)
             except QgsProcessingException as exc:
                 raise RuntimeError(f"Error during performing topocorrection: {exc}")
 
-            if ctx.qgis_feedback.isCanceled():
+            if ctx.is_canceled():
                 return None
 
         return result_bands
@@ -127,3 +130,7 @@ class TopoCorrectionAlgorithm:
         ctx.log(f"Time for band {raster_infos[0].band}: {(calc_end - calc_start) / 1000000} ms")
 
         return out_path
+
+
+def _process_band_wrapper(algorithm, _ctx, _band_idx):
+    algorithm.process_band(_ctx, _band_idx)

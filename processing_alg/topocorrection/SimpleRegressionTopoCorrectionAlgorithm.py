@@ -13,7 +13,7 @@ class SimpleRegressionTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         luminance_bytes = ctx.luminance_bytes.ravel()
 
         read_start = time.process_time_ns()
-        band_bytes = read_band_flat(ctx.input_layer.source(), band_idx=band_idx+1)
+        band_bytes = read_band_flat(ctx.input_layer_path, band_idx=band_idx+1)
         read_end = time.process_time_ns()
 
         ctx.log(f'read: {(read_end - read_start) / 1000000} sec')

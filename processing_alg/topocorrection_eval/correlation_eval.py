@@ -62,7 +62,7 @@ class CorrelationEvaluationAlgorithm(EvaluationAlgorithm):
         super().__init__(ctx, merge_strategy, group_ids)
         self.bins = bins
 
-        self.img_ds = gdal_utils.open_img(ctx.input_layer.source())
+        self.img_ds = gdal_utils.open_img(ctx.input_layer_path)
         self.luminance_bytes = gdal_utils.read_band_as_array(luminance_path).ravel()
 
     def _evaluate_band(self, band: EvaluationAlgorithm.BandInfo, group_idx) -> Any:

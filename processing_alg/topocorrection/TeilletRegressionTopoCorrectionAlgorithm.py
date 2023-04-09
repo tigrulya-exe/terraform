@@ -11,7 +11,7 @@ class TeilletRegressionTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlg
 
     def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
-        self.raster_means = gdal_utils.compute_band_means(ctx.input_layer.source())
+        self.raster_means = gdal_utils.compute_band_means(ctx.input_layer_path)
 
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
@@ -28,7 +28,7 @@ class TeilletRegressionTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlg
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("input", ctx.input_layer.source(), band_idx + 1),
+                RasterInfo("input", ctx.input_layer_path, band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
             ],
             out_file_postfix=band_idx

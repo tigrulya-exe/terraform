@@ -172,13 +172,6 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
             )
         )
 
-        self.addParameter(
-            QgsProcessingParameterRasterDestination(
-                'OUTPUT',
-                self.tr('Result output')
-            )
-        )
-
         show_layers_param = QgsProcessingParameterEnum(
             'SHOW_AUXILIARY_LAYERS',
             self.tr('Auxiliary generated layers to open after running algorithm'),

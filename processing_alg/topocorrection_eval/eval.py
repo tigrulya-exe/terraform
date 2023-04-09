@@ -110,7 +110,7 @@ class EvaluationAlgorithm:
         self.ctx = ctx
         self.merge_strategy = merge_strategy
 
-        self.input_ds = gdal_utils.open_img(ctx.input_layer.source())
+        self.input_ds = gdal_utils.open_img(ctx.input_layer_path)
 
         if group_ids_path is not None:
             self.groups_map = gdal_utils.read_band_as_array(group_ids_path, 1).ravel()

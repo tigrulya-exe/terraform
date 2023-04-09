@@ -25,9 +25,27 @@ __author__ = 'Tigran Manasyan'
 __date__ = '2023-02-27'
 __copyright__ = '(C) 2023 by Tigran Manasyan'
 
+import multiprocessing
 import os
+import platform
 import sys
+from pathlib import Path
 
+_WIN_QGIS_PATH = None
+
+
+def set_multiprocessing_metadata():
+    if platform.system() == 'Windows':
+        global _WIN_QGIS_PATH
+        _WIN_QGIS_PATH = sys.executable
+        # multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'pythonw.exe'))
+        new_executable = Path(sys.executable).parent
+        # multiprocessing.set_executable(os.path.join(str(new_executable), 'python-qgis.bat'))
+        multiprocessing.set_executable(os.path.join(str(new_executable), 'python3.exe'))
+
+
+def qgis_path():
+    return _WIN_QGIS_PATH
 
 def ensure_import(package_name):
     """ Ensures that a dependency package could be imported. It is either already available in the QGIS environment or
