@@ -9,15 +9,16 @@ from typing import Any, Dict
 import pandas as pd
 from pandas import DataFrame, Series, ExcelWriter
 from pandas.core.groupby import SeriesGroupBy
+from qgis._core import QgsProcessingContext, QgsProcessingParameterBoolean
 from qgis.core import QgsProcessingParameterFolderDestination, QgsProcessingParameterEnum, \
     QgsProcessingParameterRasterLayer, \
-    QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingException, QgsTask, QgsTaskManager
+    QgsProcessingFeedback, QgsProcessingParameterNumber
 from tabulate import tabulate
 
 from .eval import EvaluationAlgorithm, MergeStrategy
 from .metrics import EvalMetric, EvalContext, DEFAULT_METRICS
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
-from ..execution_context import QgisExecutionContext, SerializableCorrectionExecutionContext
+from ..execution_context import QgisExecutionContext, SerializableQgisExecutionContext
 from ..topocorrection import DEFAULT_CORRECTIONS
 from ..topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ...computation.gdal_utils import open_img
@@ -62,13 +63,6 @@ class BandMetricsCombiner:
         return self.DEFAULT_STRATEGIES[self.combine_strategy](values)
 
 
-def topo_correction_entrypoint(ctx, correction, corrected_image_path):
-    init_qgis_env(ctx.qgis_path)
-    ctx.output_file_path = corrected_image_path
-    correction.process(ctx)
-    return corrected_image_path
-
-
 class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
     def __init__(
             self,
@@ -84,7 +78,10 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
         self.metrics_combiner = BandMetricsCombiner(metrics_combine_strategy)
 
     def evaluate(self):
-        self._perform_topo_corrections()
+        if self.ctx.run_parallel:
+            self._perform_topo_corrections_parallel()
+        else:
+            self._perform_topo_corrections()
         return super().evaluate()
 
     def _evaluate_group(self, group_idx):
@@ -141,9 +138,8 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
         return normalized_df
 
-    # todo parallelize
-    def _perform_topo_corrections(self):
-        correction_ctx = SerializableCorrectionExecutionContext.from_ctx(self.ctx)
+    def _perform_topo_corrections_parallel(self):
+        correction_ctx = SerializableQgisExecutionContext.from_ctx(self.ctx)
 
         futures = dict()
         with ProcessPoolExecutor() as executor:
@@ -158,41 +154,25 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
                 self.correction_results[correction_name] = future.result()
                 self.ctx.log(f"get res for {correction_name}")
 
-    def _perform_topo_corrections_parallel(self):
-        task_manager = QgsTaskManager()
-
-        def task_wrapper(task, _correction, _ctx):
-            self._perform_topo_correction(_correction, _ctx)
-
-        _ = self.ctx.luminance_path
+    def _perform_topo_corrections(self):
+        correction_ctx = copy(self.ctx)
+        correction_ctx.need_load = False
 
         for correction in self.corrections:
-            try:
-                correction_ctx = copy(self.ctx)
-                task = QgsTask.fromFunction(f'Task for correction {correction}', task_wrapper,
-                                            _correction=correction, _ctx=correction_ctx)
-                task_manager.addTask(task)
-            except QgsProcessingException as exc:
-                task_manager.cancelAll()
-                raise RuntimeError(f"Error during performing topocorrection: {exc}")
-
-            if self.ctx.is_canceled():
-                task_manager.cancelAll()
-                return None
-
-        for task in task_manager.tasks():
-            if not task.waitForFinished(10000):
-                raise RuntimeError(f"Timeout exception for task {task.description()}")
-            self.ctx.log(f"Task {task.description()} finished")
-            if self.ctx.is_canceled():
-                task_manager.cancelAll()
-                return None
+            self._perform_topo_correction(correction, correction_ctx)
 
     def _perform_topo_correction(self, correction, ctx):
         corrected_image_path = os.path.join(self.ctx.output_file_path, f"{correction.get_name()}.tif")
         ctx.output_file_path = corrected_image_path
         correction.process(ctx)
         self.correction_results[correction.get_name()] = corrected_image_path
+
+
+def topo_correction_entrypoint(ctx, correction, corrected_image_path):
+    _ = init_qgis_env(ctx.output_file_path)
+    ctx.output_file_path = corrected_image_path
+    correction.process(ctx)
+    return corrected_image_path
 
 
 class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm):
@@ -259,6 +239,22 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         )
         self._additional_param(classification_map_param)
 
+        parallel_param = QgsProcessingParameterBoolean(
+            'RUN_PARALLEL',
+            self.tr('Run processing in parallel'),
+            defaultValue=False,
+            optional=True
+        )
+        self._additional_param(parallel_param)
+
+        task_timeout_param = QgsProcessingParameterNumber(
+            'TASK_TIMEOUT',
+            self.tr('Parallel task timeout in ms'),
+            defaultValue=10000,
+            type=QgsProcessingParameterNumber.Integer
+        )
+        self._additional_param(task_timeout_param)
+
     def createInstance(self):
         return MultiCriteriaEvaluationProcessingAlgorithm()
 
@@ -292,13 +288,11 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
 
         return 'OUTPUT_DIR'
 
-    def processAlgorithmInternal(
+    def _process_internal(
             self,
             parameters: Dict[str, Any],
             ctx: QgisExecutionContext,
             feedback: QgsProcessingFeedback):
-        ctx.sza_degrees = self.parameterAsDouble(parameters, 'SZA', ctx.qgis_context)
-        ctx.solar_azimuth_degrees = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', ctx.qgis_context)
 
         metric_merge_strategy = self.parameterAsEnumString(parameters, 'METRIC_MERGE_STRATEGY', ctx.qgis_context)
 
@@ -321,6 +315,18 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         self._print_results(ctx, scores_per_group, output_dir)
         # no raster output
         return []
+
+    def _ctx_additional_kw_args(
+            self,
+            parameters: Dict[str, Any],
+            context: QgsProcessingContext) -> Dict[str, Any]:
+
+        return {
+            'sza_degrees': self.parameterAsDouble(parameters, 'SZA', context),
+            'solar_azimuth_degrees': self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context),
+            'run_parallel': self.parameterAsBoolean(parameters, 'RUN_PARALLEL', context),
+            'task_timeout': self.parameterAsInt(parameters, 'TASK_TIMEOUT', context)
+        }
 
     def _print_results(
             self,

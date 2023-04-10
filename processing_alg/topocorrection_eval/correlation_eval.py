@@ -5,7 +5,7 @@ import numpy as np
 from osgeo import gdal, gdal_array
 from osgeo_utils.auxiliary.util import GetOutputDriverFor
 from qgis.core import QgsProcessingParameterRasterLayer, \
-    QgsProcessingFeedback, QgsProcessingParameterNumber
+    QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingContext
 
 from .eval import EvaluationAlgorithm, MergeStrategy, PerFileMergeStrategy
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
@@ -153,22 +153,28 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
                        "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
                        "the same CRS, extent and spatial resolution.")
 
-    def processAlgorithmInternal(
+    def _process_internal(
             self,
             parameters: Dict[str, Any],
             context: QgisExecutionContext,
             feedback: QgsProcessingFeedback
     ):
-        context.sza_degrees = self.parameterAsDouble(parameters, 'SZA', context.qgis_context)
-        context.solar_azimuth_degrees = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context.qgis_context)
-
         group_ids_layer = self.parameterAsRasterLayer(parameters, 'CLASSIFICATION_MAP', context.qgis_context)
         group_ids_path = None if group_ids_layer is None else group_ids_layer.source()
-        paths_with_names = self.compute_correlation(context, group_ids_path)
+        paths_with_names = self._compute_correlation(context, group_ids_path)
 
         return paths_with_names
 
-    def compute_correlation(self, ctx: QgisExecutionContext, group_ids_path):
+    def _ctx_additional_kw_args(
+            self,
+            parameters: Dict[str, Any],
+            context: QgsProcessingContext) -> Dict[str, Any]:
+        return {
+            'sza_degrees': self.parameterAsDouble(parameters, 'SZA', context),
+            'solar_azimuth_degrees': self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context),
+        }
+
+    def _compute_correlation(self, ctx: QgisExecutionContext, group_ids_path):
         bins = self.parameterAsInt(ctx.qgis_params, 'BIN_COUNT', ctx.qgis_context)
 
         def generate_file_name(node: CorrelationNodeInfo):

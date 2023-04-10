@@ -165,7 +165,7 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
         if self.format_param_supported_by_qgis(ctx):
             super().add_layers_to_project(ctx, results)
 
-    def compute_correlation(self, ctx: QgisExecutionContext, group_ids_path):
+    def _compute_correlation(self, ctx: QgisExecutionContext, group_ids_path):
 
         output_directory = ctx.output_file_path
         bins = self.parameterAsInt(ctx.qgis_params, 'BIN_COUNT', ctx.qgis_context)

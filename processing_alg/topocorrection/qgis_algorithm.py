@@ -30,6 +30,7 @@ __copyright__ = '(C) 2023 by Tigran Manasyan'
 
 __revision__ = '$Format:%H$'
 
+import random
 from enum import Enum
 from typing import Dict, Any
 
@@ -214,35 +215,36 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
 
         output_file_path = self.parameterAsFileOutput(parameters, 'OUTPUT', context)
 
-        # todo migrate topo correction algorithms to QgisExecutionContext
         class TopoCorrectionQgisExecutionContext(QgisExecutionContext):
             def __init__(inner):
                 super().__init__(
-                    context,
-                    feedback,
-                    parameters,
-                    input_layer,
-                    dem_layer,
+                    qgis_context=context,
+                    qgis_feedback=feedback,
+                    qgis_params=parameters,
+                    input_layer=input_layer,
+                    dem_layer=dem_layer,
+                    output_file_path=output_file_path,
                     sza_degrees=solar_zenith_angle,
                     solar_azimuth_degrees=solar_azimuth,
                     run_parallel=run_parallel,
-                    task_timeout=task_timeout,
-                    output_file_path=output_file_path
+                    task_timeout=task_timeout
                 )
+                inner.salt = random.randint(1, 100000)
 
             def calculate_slope(inner, in_radians=True) -> str:
                 result_path = super().calculate_slope(in_radians)
-                self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.SLOPE, "Slope_gen")
+                self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.SLOPE, f"Slope_{inner.salt}")
                 return result_path
 
             def calculate_aspect(inner, in_radians=True) -> str:
                 result_path = super().calculate_aspect(in_radians)
-                self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.ASPECT, "Aspect_gen")
+                self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.ASPECT, f"Aspect_{inner.salt}")
                 return result_path
 
             def calculate_luminance(inner, slope_path=None, aspect_path=None) -> str:
                 result_path = super().calculate_luminance(slope_path, aspect_path)
-                self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.LUMINANCE, "Luminance_gen")
+                self._add_layer_to_project(context, result_path, self.AuxiliaryLayers.LUMINANCE,
+                                           f"Luminance_{inner.salt}")
                 return result_path
 
         ctx = TopoCorrectionQgisExecutionContext()
@@ -251,7 +253,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         # add validation
         results = self.algorithms[correction_name].process(ctx)
 
-        add_layer_to_load(context, results['OUTPUT'], "Merged result")
+        # add_layer_to_load(context, results['OUTPUT'], "Merged result")
 
         # todo: change band names even without load on completion
         if context.willLoadLayerOnCompletion(results['OUTPUT']):

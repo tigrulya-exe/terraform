@@ -322,7 +322,7 @@ class RoseDiagramEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
         if self.format_param_supported_by_qgis(ctx):
             super().add_layers_to_project(ctx, results)
 
-    def processAlgorithmInternal(
+    def _process_internal(
             self,
             parameters: Dict[str, Any],
             ctx: QgisExecutionContext,

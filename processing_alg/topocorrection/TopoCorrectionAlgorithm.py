@@ -8,7 +8,8 @@ from typing import Dict, Any
 import processing
 from qgis.core import QgsProcessingException
 
-from ..execution_context import QgisExecutionContext, SerializableCorrectionExecutionContext
+from ..execution_context import QgisExecutionContext, SerializableQgisExecutionContext
+from ...computation.qgis_utils import init_qgis_env
 from ...computation.raster_calc import SimpleRasterCalc, RasterInfo
 
 
@@ -36,7 +37,9 @@ class TopoCorrectionAlgorithm:
 
         ctx.log(f"start merge results for {self.get_name()}")
 
-        results = processing.run(
+        processing_func = processing.runAndLoadResults if ctx.need_load else processing.run
+
+        results = processing_func(
             "gdal:merge",
             {
                 'INPUT': result_bands,
@@ -55,7 +58,7 @@ class TopoCorrectionAlgorithm:
     def _process_parallel(self, ctx: QgisExecutionContext):
         result_bands = []
 
-        serializable_ctx = SerializableCorrectionExecutionContext.from_ctx(ctx)
+        serializable_ctx = SerializableQgisExecutionContext.from_ctx(ctx)
 
         futures = []
 

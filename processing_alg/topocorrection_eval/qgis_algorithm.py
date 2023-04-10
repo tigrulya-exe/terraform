@@ -66,21 +66,20 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
         output_file_path = self._get_output_dir(parameters, context)
 
         execution_ctx = QgisExecutionContext(
-            context,
-            feedback,
-            parameters,
-            input_layer,
-            dem_layer,
-            output_file_path
+            qgis_context=context,
+            qgis_feedback=feedback,
+            qgis_params=parameters,
+            input_layer=input_layer,
+            dem_layer=dem_layer,
+            output_file_path=output_file_path,
+            **self._ctx_additional_kw_args(parameters, context)
         )
 
-        result = self.processAlgorithmInternal(parameters, execution_ctx, feedback)
+        result = self._process_internal(parameters, execution_ctx, feedback)
 
         self.add_layers_to_project(execution_ctx, result)
 
-        return {
-            "OUT": result
-        }
+        return {"OUT": result}
 
     def add_output_param(self):
         self.addParameter(
@@ -106,13 +105,19 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
         if need_open:
             set_layers_to_load(ctx.qgis_context, results)
 
-    def processAlgorithmInternal(
+    def _process_internal(
             self,
             parameters: Dict[str, Any],
             context: QgisExecutionContext,
             feedback: QgsProcessingFeedback
     ) -> Dict[str, Any]:
         pass
+
+    def _ctx_additional_kw_args(
+            self,
+            parameters: Dict[str, Any],
+            context: QgsProcessingContext) -> Dict[str, Any]:
+        return dict()
 
     def _get_output_dir(self, qgis_params, qgis_context):
         output_directory = self.parameterAsString(qgis_params, 'OUTPUT_DIR', qgis_context)

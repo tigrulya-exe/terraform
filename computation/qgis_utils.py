@@ -13,9 +13,9 @@ _WIN_QGIS_PATH = None
 def set_multiprocessing_metadata():
     if platform.system() == 'Windows':
         global _WIN_QGIS_PATH
-        _WIN_QGIS_PATH = str(Path(sys.executable).parent.parent)
-        # multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'pythonw.exe'))
-        multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'python3.exe'))
+        # _WIN_QGIS_PATH = str(Path(sys.executable).parent.parent)
+        _WIN_QGIS_PATH = os.environ["QGIS_PREFIX_PATH"]
+        multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'pythonw.exe'))
 
 
 def qgis_path():
@@ -25,10 +25,11 @@ def qgis_path():
 def init_qgis_env(qgis_install_path):
     if platform.system() == 'Windows':
         # Initialize QGIS Application
-        _ = QgsApplication([], False)
+        app = QgsApplication([], False)
         QgsApplication.setPrefixPath(qgis_install_path, True)
         QgsApplication.initQgis()
         Processing.initialize()
+        return app
 
 
 def add_layer_to_load(context, layer_path, name="out"):
