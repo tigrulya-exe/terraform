@@ -8,8 +8,7 @@ import processing
 from qgis.core import QgsProcessingContext, QgsProcessingFeedback, QgsRasterLayer
 
 from ..computation.gdal_utils import read_band_as_array
-from ..computation.qgis_utils import check_compatible
-from ..dependencies import qgis_path, set_multiprocessing_metadata
+from ..computation.qgis_utils import check_compatible, set_multiprocessing_metadata, qgis_path
 
 
 # todo use simple raster calc in methods instead of qgis raster calc
@@ -27,7 +26,6 @@ class QgisExecutionContext:
     run_parallel: bool = False
     task_timeout: int = 10000
     keep_in_memory: bool = True
-    qgis_path: str = None
 
     def __post_init__(self):
         check_compatible(self.input_layer, self._dem_layer)
@@ -241,7 +239,8 @@ class SerializableCorrectionExecutionContext:
         return False
 
     def log(self, message: str):
-        logging.basicConfig(level=logging.INFO,
-                            filename=fr"D:\PyCharmProjects\QgisPlugin\log\log-{os.path.basename(self.output_file_path)}.log",
-                            filemode="w")
-        logging.info(message)
+        # logging.basicConfig(level=logging.INFO,
+        #                     filename=fr"D:\PyCharmProjects\QgisPlugin\log\log-{os.path.basename(self.output_file_path)}.log",
+        #                     filemode="w")
+        # logging.info(message)
+        print(message)

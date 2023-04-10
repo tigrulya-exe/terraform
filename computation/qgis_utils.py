@@ -1,4 +1,34 @@
-from qgis.core import QgsProcessingContext, QgsProcessingUtils, QgsProject, QgsRasterLayer
+import multiprocessing
+import os
+import platform
+import sys
+from pathlib import Path
+
+from processing import Processing
+from qgis.core import QgsApplication, QgsProcessingContext, QgsProcessingUtils, QgsProject, QgsRasterLayer
+
+_WIN_QGIS_PATH = None
+
+
+def set_multiprocessing_metadata():
+    if platform.system() == 'Windows':
+        global _WIN_QGIS_PATH
+        _WIN_QGIS_PATH = str(Path(sys.executable).parent.parent)
+        # multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'pythonw.exe'))
+        multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'python3.exe'))
+
+
+def qgis_path():
+    return _WIN_QGIS_PATH
+
+
+def init_qgis_env(qgis_install_path):
+    if platform.system() == 'Windows':
+        # Initialize QGIS Application
+        _ = QgsApplication([], False)
+        QgsApplication.setPrefixPath(qgis_install_path, True)
+        QgsApplication.initQgis()
+        Processing.initialize()
 
 
 def add_layer_to_load(context, layer_path, name="out"):

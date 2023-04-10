@@ -1,16 +1,11 @@
 import os
-import platform
 import random
-import sys
 import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor
-from pathlib import Path
 from typing import Dict, Any
 
 import processing
-from processing.core.Processing import Processing
-from qgis._core import QgsApplication
 from qgis.core import QgsProcessingException
 
 from ..execution_context import QgisExecutionContext, SerializableCorrectionExecutionContext
@@ -41,13 +36,6 @@ class TopoCorrectionAlgorithm:
 
         ctx.log(f"start merge results for {self.get_name()}")
 
-        if platform.system() == 'Windows' and ctx.qgis_path is not None:
-            # Initialize QGIS Application
-            qgs = QgsApplication([], False)
-            QgsApplication.setPrefixPath(str(Path(sys.executable).parent.parent), True)
-            QgsApplication.initQgis()
-            Processing.initialize()
-
         results = processing.run(
             "gdal:merge",
             {
@@ -60,6 +48,7 @@ class TopoCorrectionAlgorithm:
             feedback=ctx.qgis_feedback,
             context=ctx.qgis_context
         )
+        ctx.log(f"end merge results for {self.get_name()}")
 
         return results
 

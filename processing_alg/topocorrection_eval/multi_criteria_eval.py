@@ -21,6 +21,7 @@ from ..execution_context import QgisExecutionContext, SerializableCorrectionExec
 from ..topocorrection import DEFAULT_CORRECTIONS
 from ..topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ...computation.gdal_utils import open_img
+from ...computation.qgis_utils import init_qgis_env
 
 
 @dataclass
@@ -62,6 +63,7 @@ class BandMetricsCombiner:
 
 
 def topo_correction_entrypoint(ctx, correction, corrected_image_path):
+    init_qgis_env(ctx.qgis_path)
     ctx.output_file_path = corrected_image_path
     correction.process(ctx)
     return corrected_image_path
@@ -147,7 +149,8 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
         with ProcessPoolExecutor() as executor:
             for correction in self.corrections:
                 corrected_image_path = os.path.join(self.ctx.output_file_path, f"{correction.get_name()}.tif")
-                correction_future = executor.submit(topo_correction_entrypoint, correction_ctx, correction, corrected_image_path)
+                correction_future = executor.submit(topo_correction_entrypoint, correction_ctx, correction,
+                                                    corrected_image_path)
                 self.ctx.log(f"Path for {correction.get_name()} is {corrected_image_path}")
                 futures[correction.get_name()] = correction_future
 
