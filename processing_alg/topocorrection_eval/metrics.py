@@ -1,7 +1,9 @@
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
-from pandas import DataFrame
+from numpy import ndarray
+from pandas import Series
 
 from ...processing_alg.topocorrection_eval.eval import EvaluationAlgorithm
 
@@ -18,28 +20,28 @@ def minmax(values: list):
     return min_val, max_val
 
 
-# тут надо наверн передавать не сами ориг байтс, а геттер хз
 @dataclass
 class EvalContext:
     current_band: EvaluationAlgorithm.BandInfo
-    orig_band: EvaluationAlgorithm.BandInfo
-    orig_metrics: dict[str, float]
+    orig_stats: dict[str, Any]
+    luminance_bytes: ndarray
 
     def orig_minmax(self):
-        return self.band_minmax(self.orig_band)
+        return self.orig_stats['min'], self.orig_stats['max']
 
     def band_minmax(self, band):
         band_min, band_max, *_ = band.gdal_band.GetStatistics(True, True)
         return band_min, band_max
 
     def orig_metric(self, metric) -> float:
-        return self.orig_metrics[metric.id()]
+        return self.orig_stats[metric.id()]
 
 
 class EvalMetric:
     def __init__(self, is_reduction=True, weight=1.0):
         self.weight = weight
         self.is_reduction = is_reduction
+        self._combine_multiplier = -1 if is_reduction else 1
 
     @staticmethod
     def id():
@@ -49,20 +51,11 @@ class EvalMetric:
     def name():
         pass
 
-    def unary(self, values: list) -> float:
+    def evaluate(self, values: list, ctx: EvalContext) -> float:
         pass
 
-    def binary(self, values: list, ctx: EvalContext) -> float:
-        return self.combine(self.unary(values), ctx.orig_metric(self))
-
-    def combine(self, original: float, corrected: float):
-        return corrected if original == 0 else (corrected - original) / original
-
-    # norm all values to [0, 1] range
-    def norm(self, metrics: DataFrame) -> DataFrame:
-        metrics_min = metrics.min()
-        normalized_df = (metrics - metrics_min) / (metrics.max() - metrics_min)
-        return 1 - normalized_df if self.is_reduction else normalized_df
+    def combine(self, original: Series, corrected: Series) -> Series:
+        return corrected * self._combine_multiplier
 
 
 class StdMetric(EvalMetric):
@@ -74,7 +67,7 @@ class StdMetric(EvalMetric):
     def name():
         return "Mean reflectance reduction"
 
-    def unary(self, values: list) -> float:
+    def evaluate(self, values: list, ctx: EvalContext) -> float:
         return np.std(values)
 
 
@@ -87,7 +80,7 @@ class CvMetric(EvalMetric):
     def name():
         return "Coefficient of variation reduction"
 
-    def unary(self, values: list) -> float:
+    def evaluate(self, values: list, ctx: EvalContext) -> float:
         return np.std(values) / np.mean(values)
 
 
@@ -106,7 +99,7 @@ class InterQuartileRangeMetric(EvalMetric):
     def get_q1_q3(values):
         return np.percentile(values, [25, 75])
 
-    def unary(self, values: list) -> float:
+    def evaluate(self, values: list, ctx: EvalContext) -> float:
         q1, q3 = InterQuartileRangeMetric.get_q1_q3(values)
         return q3 - q1
 
@@ -121,24 +114,15 @@ class RelativeMedianDifferenceRangeMetric(EvalMetric):
         return "Relative median difference"
 
     # @functools.cache
-    def unary(self, values: list) -> float:
+    def evaluate(self, values: list, ctx: EvalContext) -> float:
         return np.median(values)
 
-    def combine(self, original: float, corrected: float):
-        return abs(corrected) if original == 0 else abs(corrected - original) / original
+    def combine(self, original: Series, corrected: Series):
+        return -abs(corrected.subtract(original, level=1))
 
 
 class OutliersCountMetric(EvalMetric):
-    def __init__(self):
-        super().__init__(is_reduction=False)
-
-    def combine(self, original: float, corrected: float):
-        return corrected
-
-    def unary(self, values: list) -> float:
-        return 0
-
-    def binary(self, values, ctx: EvalContext) -> float:
+    def evaluate(self, values: list, ctx: EvalContext) -> float:
         return np.count_nonzero(self._outliers_filter(values, ctx))
 
     def _outliers_filter(self, values: list, ctx: EvalContext):
@@ -167,7 +151,7 @@ class ThresholdOutliersCountMetric(OutliersCountMetric):
 
     def _outliers_filter(self, values, ctx: EvalContext):
         self._init_thresholds(ctx)
-        return np.logical_and(self.min_threshold >= values, values >= self.max_threshold)
+        return np.logical_or(self.min_threshold > values, values > self.max_threshold)
 
 
 class IqrOutliersCountMetric(OutliersCountMetric):
@@ -183,7 +167,7 @@ class IqrOutliersCountMetric(OutliersCountMetric):
         q1, q3 = np.percentile(values, [25, 75])
         min_threshold = q1 - (q3 - q1)
         max_threshold = q3 + (q3 - q1)
-        return np.logical_and(min_threshold >= values, values >= max_threshold)
+        return np.logical_or(min_threshold > values, values > max_threshold)
 
 
 class RegressionSlopeMetric(EvalMetric):
@@ -195,14 +179,8 @@ class RegressionSlopeMetric(EvalMetric):
     def name():
         return "Slope of the regression between band values and solar incidence angle"
 
-    def unary(self, values: list) -> float:
-        return 0
-
-    def combine(self, original: float, corrected: float):
-        return corrected
-
-    def binary(self, values: list, ctx: EvalContext) -> float:
-        _, slope = np.polynomial.polynomial.polyfit(values, ctx.orig_band.bytes, 1)
+    def evaluate(self, values: list, ctx: EvalContext) -> float:
+        _, slope = np.polynomial.polynomial.polyfit(ctx.luminance_bytes, values, 1)
         return abs(slope)
 
 

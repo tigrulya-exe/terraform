@@ -6,13 +6,19 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict
 
+import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series, ExcelWriter
 from pandas.core.groupby import SeriesGroupBy
-from qgis._core import QgsProcessingContext, QgsProcessingParameterBoolean
-from qgis.core import QgsProcessingParameterFolderDestination, QgsProcessingParameterEnum, \
-    QgsProcessingParameterRasterLayer, \
-    QgsProcessingFeedback, QgsProcessingParameterNumber
+from qgis.core import (
+    QgsProcessingParameterFolderDestination,
+    QgsProcessingParameterEnum,
+    QgsProcessingParameterRasterLayer,
+    QgsProcessingFeedback,
+    QgsProcessingParameterNumber,
+    QgsProcessingContext,
+    QgsProcessingParameterBoolean
+)
 from tabulate import tabulate
 
 from .eval import EvaluationAlgorithm, MergeStrategy
@@ -64,12 +70,14 @@ class BandMetricsCombiner:
 
 
 class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
+    ORIGINAL_IMAGE_KEY = '__orig__'
+
     def __init__(
             self,
             ctx: QgisExecutionContext,
             metrics: list[EvalMetric],
             corrections: list[TopoCorrectionAlgorithm],
-            metrics_combine_strategy: BandMetricsCombiner.Strategy = BandMetricsCombiner.Strategy.MAX,
+            metrics_combine_strategy: BandMetricsCombiner.Strategy = BandMetricsCombiner.Strategy.SUM,
             group_ids_path=None):
         super().__init__(ctx, self, group_ids_path)
         self.metrics_dict: dict[str, EvalMetric] = {metric.id(): metric for metric in metrics}
@@ -91,52 +99,73 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
         corrected_ds_dict = {correction: open_img(result_path)
                              for correction, result_path in self.correction_results.items()}
 
+        luminance_bytes = self._get_masked_bytes(self.ctx.luminance_bytes.ravel(), group_idx)
+
+        orig_stats: list[dict[str, Any]] = []
         for band_idx in range(self.input_ds.RasterCount):
             orig_band = self._get_masked_band(self.input_ds, band_idx, group_idx)
-            orig_metrics = self._evaluate_band_unary(orig_band)
+            stats = self._compute_stats(orig_band.bytes)
+            orig_metrics = self._evaluate_metrics(
+                EvalContext(orig_band, stats, luminance_bytes)
+            )
+            orig_stats.append(stats)
+            corrected_metrics_dict[self.ORIGINAL_IMAGE_KEY].append(orig_metrics)
 
-            for correction_id, corrected_ds in corrected_ds_dict.items():
+        for correction_id, corrected_ds in corrected_ds_dict.items():
+            for band_idx in range(corrected_ds.RasterCount):
                 corrected_band = self._get_masked_band(corrected_ds, band_idx, group_idx)
-                band_result = self._evaluate_band_binary(
-                    EvalContext(corrected_band, orig_band, orig_metrics)
+                band_result = self._evaluate_metrics(
+                    EvalContext(corrected_band, orig_stats[band_idx], luminance_bytes)
                 )
                 corrected_metrics_dict[correction_id].append(band_result)
+
+        del luminance_bytes
 
         band_dfs = {correction_name: pd.DataFrame(metrics, columns=column_names) for correction_name, metrics in
                     corrected_metrics_dict.items()}
         group_df = pd.concat(band_dfs)
 
-        metrics_per_correction_band, normalized_metrics = self.merge_strategy.merge(group_df)
+        metrics_per_correction_band, normalized_metrics = self.merge_strategy.merge(group_df.copy())
         scores_per_correction = self.metrics_combiner.combine(metrics_per_correction_band)
 
         scores_per_correction_df = scores_per_correction.to_frame(name='Score')
 
         return [GroupResult(group_idx, scores_per_correction_df, group_df, normalized_metrics)]
 
-    def _evaluate_band_unary(self, band: EvaluationAlgorithm.BandInfo) -> dict[str, float]:
-        metrics_results = dict()
-        for metric_id, metric in self.metrics_dict.items():
-            metrics_results[metric.id()] = metric.unary(band.bytes)
+    def _compute_stats(self, data):
+        return {
+            'min': np.min(data),
+            'max': np.max(data)
+        }
 
-        return metrics_results
-
-    def _evaluate_band_binary(self, ctx: EvalContext) -> list[float]:
-        return [metric.binary(ctx.current_band.bytes, ctx) for metric in self.metrics_dict.values()]
+    def _evaluate_metrics(self, ctx: EvalContext) -> list[float]:
+        return [metric.evaluate(ctx.current_band.bytes, ctx) for metric in self.metrics_dict.values()]
 
     def merge(self, metrics: DataFrame):
-        weights = [metric.weight for metric in self.metrics_dict.values()]
-        normalized_metrics: DataFrame = self._norm(metrics)
-        return (normalized_metrics * weights).sum(1), normalized_metrics
-
-    def _norm(self, group_result: DataFrame) -> DataFrame:
-        metrics_min = group_result.min()
-        normalized_df = (group_result - metrics_min) / (group_result.max() - metrics_min)
+        orig_metrics = metrics.xs(self.ORIGINAL_IMAGE_KEY)
 
         for metric_id, metric in self.metrics_dict.items():
-            if metric.is_reduction:
-                normalized_df[metric_id] = 1 - normalized_df[metric_id]
+            metrics[metric_id] = metric.combine(orig_metrics[metric_id], metrics[metric_id])
 
-        return normalized_df
+        weights = [metric.weight for metric in self.metrics_dict.values()]
+        correction_metrics = metrics.drop(self.ORIGINAL_IMAGE_KEY)
+
+        normalized_metrics: DataFrame = self._normalize(correction_metrics, orig_metrics)
+        return (normalized_metrics * weights).sum(1), normalized_metrics
+
+    def _normalize(self, group_result: DataFrame, orig_metrics: DataFrame) -> DataFrame:
+        good_results = group_result.where(group_result.ge(orig_metrics, level=1))
+        norm_good_results = self._normalize_single(good_results)
+
+        bad_results = group_result.where(group_result.lt(orig_metrics, level=1))
+        norm_bad_results = self._normalize_single(bad_results) - 1
+
+        norm_good_results.fillna(norm_bad_results, inplace=True)
+        return norm_good_results.replace([np.inf, np.nan], 1)
+
+    def _normalize_single(self, metrics: DataFrame):
+        metrics_min, metrics_max = metrics.min(level=1), metrics.max(level=1)
+        return metrics.subtract(metrics_min, level=1).divide(metrics_max - metrics_min, level=1)
 
     def _perform_topo_corrections_parallel(self):
         correction_ctx = SerializableQgisExecutionContext.from_ctx(self.ctx)
@@ -227,7 +256,7 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             self.tr('Strategy for band scores merging'),
             options=[s for s in BandMetricsCombiner.Strategy],
             allowMultiple=False,
-            defaultValue='max',
+            defaultValue='sum',
             usesStaticStrings=True
         )
         self._additional_param(metric_merge_strategy_param)
