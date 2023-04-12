@@ -2,7 +2,6 @@ import multiprocessing
 import os
 import platform
 import sys
-from pathlib import Path
 
 from processing import Processing
 from qgis.core import QgsApplication, QgsProcessingContext, QgsProcessingUtils, QgsProject, QgsRasterLayer
@@ -68,3 +67,8 @@ def check_compatible(left_layer: QgsRasterLayer, right_layer: QgsRasterLayer):
         raise Exception(
             f"Resolutions of {left_layer.name()} and {right_layer.name()} should be the same"
         )
+
+
+def get_table_dict(table_list, val_per_row=1):
+    it = iter(table_list)
+    return {key: [next(it) for _ in range(val_per_row)] for key in it}

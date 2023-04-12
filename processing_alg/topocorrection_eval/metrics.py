@@ -84,7 +84,6 @@ class CvMetric(EvalMetric):
         return np.std(values) / np.mean(values)
 
 
-# todo add iqr outliers metric https://www.scribbr.com/statistics/outliers/
 class InterQuartileRangeMetric(EvalMetric):
     @staticmethod
     def id():
@@ -138,8 +137,8 @@ class ThresholdOutliersCountMetric(OutliersCountMetric):
     def name():
         return "Number of outliers (static thresholds)"
 
-    def __init__(self, min_threshold=None, max_threshold=None):
-        super().__init__()
+    def __init__(self, min_threshold=None, max_threshold=None, weight=1.0):
+        super().__init__(weight=weight)
         self.min_threshold = min_threshold
         self.max_threshold = max_threshold
 

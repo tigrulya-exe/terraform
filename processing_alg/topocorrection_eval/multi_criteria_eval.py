@@ -12,6 +12,7 @@ from pandas import DataFrame, Series, ExcelWriter
 from pandas.core.groupby import SeriesGroupBy
 from qgis.core import (
     QgsProcessingParameterFolderDestination,
+    QgsProcessingParameterMatrix,
     QgsProcessingParameterEnum,
     QgsProcessingParameterRasterLayer,
     QgsProcessingFeedback,
@@ -25,10 +26,11 @@ from .eval import EvaluationAlgorithm, MergeStrategy
 from .metrics import EvalMetric, EvalContext, DEFAULT_METRICS
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext, SerializableQgisExecutionContext
+from ..gui.table_widget import NewFixedTableWidgetWrapper1
 from ..topocorrection import DEFAULT_CORRECTIONS
 from ..topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ...computation.gdal_utils import open_img
-from ...computation.qgis_utils import init_qgis_env
+from ...computation.qgis_utils import init_qgis_env, get_table_dict
 
 
 @dataclass
@@ -208,7 +210,7 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
     def __init__(self):
         super().__init__()
         self.correction_classess = DEFAULT_CORRECTIONS
-        self.metric_classes = DEFAULT_METRICS
+        self.metric_classes = {MetricClass.name(): MetricClass for MetricClass in DEFAULT_METRICS}
 
     def initAlgorithm(self, config=None):
         super().initAlgorithm(config)
@@ -241,14 +243,36 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             )
         )
 
+        # self.addParameter(
+        #     QgsProcessingParameterEnum(
+        #         'METRICS',
+        #         self.tr('Metrics'),
+        #         options=self.metric_classes.keys(),
+        #         allowMultiple=True,
+        #         defaultValue=[idx for idx, _ in enumerate(self.metric_classes)]
+        #     )
+        # )
+
+        def _default_metrics_gen():
+            for metric in self.metric_classes:
+                yield metric
+                yield 1.0
+
+        metric_weights = QgsProcessingParameterMatrix(
+            'METRICS',
+            self.tr('Metrics'),
+            numberRows=len(self.metric_classes),
+            hasFixedNumberRows=True,
+            headers=['Metric', 'Weight'],
+            defaultValue=list(_default_metrics_gen())
+        )
+        metric_weights.setMetadata({
+            'widget_wrapper': {
+                'class': NewFixedTableWidgetWrapper1
+            }
+        })
         self.addParameter(
-            QgsProcessingParameterEnum(
-                'METRICS',
-                self.tr('Metrics'),
-                options=[c.name() for c in self.metric_classes],
-                allowMultiple=True,
-                defaultValue=[idx for idx, _ in enumerate(self.metric_classes)]
-            )
+            metric_weights
         )
 
         metric_merge_strategy_param = QgsProcessingParameterEnum(
@@ -328,15 +352,25 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         group_ids_layer = self.parameterAsRasterLayer(parameters, 'CLASSIFICATION_MAP', ctx.qgis_context)
         group_ids_path = None if group_ids_layer is None else group_ids_layer.source()
 
-        metric_ids = self.parameterAsEnums(parameters, 'METRICS', ctx.qgis_context)
         correction_ids = self.parameterAsEnums(parameters, 'TOPO_CORRECTION_ALGORITHMS', ctx.qgis_context)
+
+        import pydevd_pycharm
+        pydevd_pycharm.settrace('127.0.0.1', port=12346, stdoutToServer=True, stderrToServer=True)
+
+        metrics_list = self.parameterAsMatrix(parameters, 'METRICS', ctx.qgis_context)
+        metrics_dict = get_table_dict(metrics_list)
+
+        metrics = []
+        for metric_id, weight in metrics_dict.items():
+            metric = self.metric_classes[metric_id](weight=float(weight[0]))
+            metrics.append(metric)
 
         algorithm = MultiCriteriaEvalAlgorithm(
             ctx,
-            [self.metric_classes[idx]() for idx in metric_ids],
-            [self.correction_classess[idx]() for idx in correction_ids],
-            BandMetricsCombiner.Strategy(metric_merge_strategy),
-            group_ids_path
+            metrics=metrics,
+            corrections=[self.correction_classess[idx]() for idx in correction_ids],
+            metrics_combine_strategy=BandMetricsCombiner.Strategy(metric_merge_strategy),
+            group_ids_path=group_ids_path
         )
 
         scores_per_group = algorithm.evaluate()

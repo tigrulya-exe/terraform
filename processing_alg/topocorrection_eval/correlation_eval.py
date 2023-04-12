@@ -70,7 +70,6 @@ class CorrelationEvaluationAlgorithm(EvaluationAlgorithm):
 
         group_luminance_bytes = self.luminance_bytes[self.groups_map == group_idx]
 
-        # todo change to band.minmax()
         img_min, img_max, *_ = band.gdal_band.GetStatistics(True, True)
         histogram, _, _ = np.histogram2d(
             group_luminance_bytes,
