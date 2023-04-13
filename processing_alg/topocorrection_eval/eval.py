@@ -10,7 +10,7 @@ from ...processing_alg.execution_context import QgisExecutionContext
 
 
 class MergeStrategy:
-    def merge(self, results):
+    def merge(self, results, group_idx):
         pass
 
 
@@ -20,7 +20,7 @@ class PerFileMergeStrategy(MergeStrategy):
         self.output_directory = output_directory
         self.filename_provider = path_provider
 
-    def merge(self, results):
+    def merge(self, results, group_idx):
         result_paths = []
         for result in results:
             filename = self.filename_provider(result)
@@ -64,7 +64,7 @@ class SubplotMergeStrategy(MergeStrategy):
     def _default_path_provider(_):
         return None
 
-    def merge(self, subplot_infos):
+    def merge(self, subplot_infos, group_idx):
         row_count = len(subplot_infos) // self.subplots_in_row
         if len(subplot_infos) % self.subplots_in_row != 0:
             row_count += 1
@@ -130,7 +130,7 @@ class EvaluationAlgorithm:
 
     def _evaluate_group(self, group):
         band_results = self._evaluate_raster(self.input_ds, group)
-        return self.merge_strategy.merge(band_results)
+        return self.merge_strategy.merge(band_results, group)
 
     def _evaluate_raster(self, raster_ds, group_idx):
         band_results = []

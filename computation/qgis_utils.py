@@ -69,6 +69,16 @@ def check_compatible(left_layer: QgsRasterLayer, right_layer: QgsRasterLayer):
         )
 
 
-def get_table_dict(table_list, val_per_row=1):
+def table_from_matrix_list(table_list, val_per_row=1):
     it = iter(table_list)
     return {key: [next(it) for _ in range(val_per_row)] for key in it}
+
+
+def matrix_list_from_table(table_dict):
+    result = []
+
+    for key, values in table_dict.items():
+        result.append(key)
+        result.extend(values)
+
+    return result

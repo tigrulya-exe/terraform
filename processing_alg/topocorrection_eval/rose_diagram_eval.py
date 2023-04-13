@@ -106,10 +106,10 @@ class RoseDiagramMergeStrategy(SubplotMergeStrategy):
         self.aspect_groups_bounds = divide_to_groups(aspect_groups_count, upper_bound=aspect_max_deg)
         self.aspect_bounds_rad = None
 
-    def merge(self, subplot_infos):
+    def merge(self, subplot_infos, group_idx):
         non_empty_aspect_groups = subplot_infos[0].group_means.shape[1]
         self.aspect_bounds_rad = [math.radians(deg) for deg in self.aspect_groups_bounds[:non_empty_aspect_groups]]
-        return super().merge(subplot_infos)
+        return super().merge(subplot_infos, group_idx)
 
     def after_plot(self, fig, axes):
         handles, labels = fig.axes[-1].get_legend_handles_labels()
