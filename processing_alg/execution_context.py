@@ -266,7 +266,7 @@ class SerializableQgisExecutionContext(ExecutionContext):
                 super().pushInfo(info)
                 self.log(info)
 
-        return InnerFeedback(True)
+        return None
 
     @property
     def qgis_params(self):
