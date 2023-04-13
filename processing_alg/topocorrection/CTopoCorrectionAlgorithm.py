@@ -1,12 +1,14 @@
 import numpy as np
-from numba import njit
 
 from .SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
 from ...computation.raster_calc import RasterInfo
 
 
-@njit
+# from numba import njit
+
+
+# @njit
 def calculate(input, luminance, sza_cosine, c):
     denominator = luminance + c
     return input * np.divide(

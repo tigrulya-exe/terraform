@@ -37,8 +37,7 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
         """
         Here we define the inputs and outputs of the algorithm.
         """
-        # 'INPUT' is the recommended name for the main input
-        # parameter.
+
         self.addParameter(
             QgsProcessingParameterRasterLayer(
                 'INPUT',

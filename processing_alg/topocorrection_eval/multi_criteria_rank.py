@@ -2,20 +2,16 @@ import os
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from copy import copy
-from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
-from pandas import DataFrame, Series, ExcelWriter
+from pandas import DataFrame, Series
 from pandas.core.groupby import SeriesGroupBy
 from qgis.core import (
-    QgsProcessingParameterFolderDestination,
     QgsProcessingParameterMatrix,
     QgsProcessingParameterEnum,
-    QgsProcessingParameterRasterLayer,
-    QgsProcessingFeedback,
     QgsProcessingParameterNumber,
     QgsProcessingContext,
     QgsProcessingParameterBoolean
@@ -24,21 +20,13 @@ from tabulate import tabulate
 
 from .eval import EvaluationAlgorithm, MergeStrategy
 from .metrics import EvalMetric, EvalContext, DEFAULT_METRICS
-from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
+from .multi_criteria_eval import MultiCriteriaEvaluationProcessingAlgorithm, GroupResult, DataFrameResult
 from ..execution_context import QgisExecutionContext, SerializableQgisExecutionContext
 from ..gui.keyed_table_widget import KeyedTableWidgetWrapper
 from ..topocorrection import DEFAULT_CORRECTIONS
 from ..topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ...computation.gdal_utils import open_img
 from ...computation.qgis_utils import init_qgis_env, table_from_matrix_list
-
-
-@dataclass
-class GroupResult:
-    group_idx: int
-    score_per_correction: DataFrame
-    extended_metrics: DataFrame
-    normalized_metrics: DataFrame
 
 
 class BandMetricsCombiner:
@@ -95,9 +83,23 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
         return super().evaluate()
 
     def _evaluate_group(self, group_idx):
-        column_names = self.metrics_dict.keys()
-        corrected_metrics_dict: dict[str, list[list[float]]] = defaultdict(list)
+        group_df = self._compute_metrics_df(group_idx)
 
+        metrics_per_correction_band_df, normalized_metrics = self.merge_strategy.merge(group_df.copy(), group_idx)
+        scores_per_correction = self.metrics_combiner.combine(metrics_per_correction_band_df)
+
+        scores_per_correction_df = scores_per_correction.to_frame(name='Score')
+        scores_per_correction_df.sort_values(by='Score', ascending=False, inplace=True)
+
+        return [GroupResult(group_idx, {
+            'Scores': DataFrameResult(scores_per_correction_df, ['Correction']),
+            'Metrics': DataFrameResult(group_df, ['Correction', 'Band']),
+            'Normalized metrics': DataFrameResult(normalized_metrics, ['Correction', 'Band']),
+            'Per band metrics': DataFrameResult(metrics_per_correction_band_df.to_frame(name='Score'), ['Correction', 'Band'])
+        })]
+
+    def _compute_metrics_df(self, group_idx):
+        corrected_metrics_dict: dict[str, list[list[float]]] = defaultdict(list)
         corrected_ds_dict = {correction: open_img(result_path)
                              for correction, result_path in self.correction_results.items()}
 
@@ -123,16 +125,13 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
         del luminance_bytes
 
-        band_dfs = {correction_name: pd.DataFrame(metrics, columns=column_names) for correction_name, metrics in
+        band_dfs = {correction_name: pd.DataFrame(metrics, columns=self.metrics_dict.keys()) for
+                    correction_name, metrics in
                     corrected_metrics_dict.items()}
+
         group_df = pd.concat(band_dfs)
-
-        metrics_per_correction_band, normalized_metrics = self.merge_strategy.merge(group_df.copy(), group_idx)
-        scores_per_correction = self.metrics_combiner.combine(metrics_per_correction_band)
-
-        scores_per_correction_df = scores_per_correction.to_frame(name='Score')
-
-        return [GroupResult(group_idx, scores_per_correction_df, group_df, normalized_metrics)]
+        group_df.index.rename(['Correction', 'Band'], inplace=True)
+        return group_df
 
     def _compute_stats(self, data):
         return {
@@ -206,63 +205,29 @@ def topo_correction_entrypoint(ctx, correction, corrected_image_path):
     return corrected_image_path
 
 
-class MultiCriteriaRankProcessingAlgorithm(TopocorrectionEvaluationAlgorithm):
+class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgorithm):
     def __init__(self):
         super().__init__()
-        self.correction_classess = DEFAULT_CORRECTIONS
+        self.correction_classes = DEFAULT_CORRECTIONS
         self.metric_classes = {MetricClass.name(): MetricClass for MetricClass in DEFAULT_METRICS}
+
+    def group(self):
+        return self.tr('Topographic correction ranking')
+
+    def groupId(self):
+        return 'topocorrection_rank'
 
     def initAlgorithm(self, config=None):
         super().initAlgorithm(config)
 
         self.addParameter(
-            QgsProcessingParameterNumber(
-                'SZA',
-                self.tr('Solar zenith angle (in degrees)'),
-                defaultValue=57.2478878065826,
-                type=QgsProcessingParameterNumber.Double
-            )
-        )
-
-        self.addParameter(
-            QgsProcessingParameterNumber(
-                'SOLAR_AZIMUTH',
-                self.tr('Solar azimuth (in degrees)'),
-                defaultValue=177.744663052425,
-                type=QgsProcessingParameterNumber.Double
-            )
-        )
-
-        self.addParameter(
             QgsProcessingParameterEnum(
                 'TOPO_CORRECTION_ALGORITHMS',
                 self.tr('Topographic correction algorithms to evaluate'),
-                options=[c.get_name() for c in self.correction_classess],
+                options=[c.get_name() for c in self.correction_classes],
                 allowMultiple=True,
-                defaultValue=[idx for idx, _ in enumerate(self.correction_classess)]
+                defaultValue=[idx for idx, _ in enumerate(self.correction_classes)]
             )
-        )
-
-        def _default_metrics_gen():
-            for metric in self.metric_classes:
-                yield metric
-                yield 1.0
-
-        metric_weights = QgsProcessingParameterMatrix(
-            'METRICS',
-            self.tr('Metrics'),
-            numberRows=len(self.metric_classes),
-            hasFixedNumberRows=True,
-            headers=['Metric', 'Weight'],
-            defaultValue=list(_default_metrics_gen())
-        )
-        metric_weights.setMetadata({
-            'widget_wrapper': {
-                'class': KeyedTableWidgetWrapper
-            }
-        })
-        self.addParameter(
-            metric_weights
         )
 
         metric_merge_strategy_param = QgsProcessingParameterEnum(
@@ -274,13 +239,6 @@ class MultiCriteriaRankProcessingAlgorithm(TopocorrectionEvaluationAlgorithm):
             usesStaticStrings=True
         )
         self._additional_param(metric_merge_strategy_param)
-
-        classification_map_param = QgsProcessingParameterRasterLayer(
-            'CLASSIFICATION_MAP',
-            self.tr('Raster layer with classification label ids for input raster'),
-            optional=True
-        )
-        self._additional_param(classification_map_param)
 
         parallel_param = QgsProcessingParameterBoolean(
             'RUN_PARALLEL',
@@ -298,53 +256,49 @@ class MultiCriteriaRankProcessingAlgorithm(TopocorrectionEvaluationAlgorithm):
         )
         self._additional_param(task_timeout_param)
 
+    def _metrics_param(self):
+        def _default_metrics_gen():
+            for metric in self.metric_classes:
+                yield metric
+                yield 1.0
+
+        metrics = QgsProcessingParameterMatrix(
+            'METRICS',
+            self.tr('Metrics'),
+            numberRows=len(self.metric_classes),
+            hasFixedNumberRows=True,
+            headers=['Metric', 'Weight'],
+            defaultValue=list(_default_metrics_gen())
+        )
+        metrics.setMetadata({
+            'widget_wrapper': {
+                'class': KeyedTableWidgetWrapper
+            }
+        })
+        return metrics
+
     def createInstance(self):
         return MultiCriteriaRankProcessingAlgorithm()
 
     def name(self):
-        """
-        Returns the unique algorithm name.
-        """
         return 'multi_criteria_rank'
 
     def displayName(self):
-        """
-        Returns the translated algorithm name.
-        """
-        return self.tr('Rank TOC algorithms by score')
+        return self.tr('Rank TOC algorithms by multi-criteria score')
 
     def shortHelpString(self):
-        """
-        Returns a localised short help string for the algorithm.
-        """
-        return self.tr('TODO')
+        return self.tr("Rank TOC algorithms by multi-criteria score based on statistical metrics. "
+                       "Current implementation contains following metrics: \n"
+                       + '\n'.join([f'<b>{metric.id()}</b>: {metric.name()}' for metric in self.metric_classes.values()])
+                       + "\n<b>Note:</b> the illumination model of the input raster image is calculated automatically, "
+                       "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
+                       "the same CRS, extent and spatial resolution.")
 
-    def add_output_param(self):
-        self.addParameter(
-            QgsProcessingParameterFolderDestination(
-                'OUTPUT_DIR',
-                self.tr('Output directory'),
-                optional=True,
-                defaultValue=None
-            )
-        )
+    def _get_scores_per_groups(self, ctx: QgisExecutionContext, group_ids_path: str):
+        correction_ids = self.parameterAsEnums(ctx.qgis_params, 'TOPO_CORRECTION_ALGORITHMS', ctx.qgis_context)
+        metric_merge_strategy = self.parameterAsEnumString(ctx.qgis_params, 'METRIC_MERGE_STRATEGY', ctx.qgis_context)
 
-        return 'OUTPUT_DIR'
-
-    def _process_internal(
-            self,
-            parameters: Dict[str, Any],
-            ctx: QgisExecutionContext,
-            feedback: QgsProcessingFeedback):
-
-        metric_merge_strategy = self.parameterAsEnumString(parameters, 'METRIC_MERGE_STRATEGY', ctx.qgis_context)
-
-        group_ids_layer = self.parameterAsRasterLayer(parameters, 'CLASSIFICATION_MAP', ctx.qgis_context)
-        group_ids_path = None if group_ids_layer is None else group_ids_layer.source()
-
-        correction_ids = self.parameterAsEnums(parameters, 'TOPO_CORRECTION_ALGORITHMS', ctx.qgis_context)
-
-        metrics_list = self.parameterAsMatrix(parameters, 'METRICS', ctx.qgis_context)
+        metrics_list = self.parameterAsMatrix(ctx.qgis_params, 'METRICS', ctx.qgis_context)
         metrics_dict = table_from_matrix_list(metrics_list)
 
         metrics = []
@@ -355,15 +309,12 @@ class MultiCriteriaRankProcessingAlgorithm(TopocorrectionEvaluationAlgorithm):
         algorithm = MultiCriteriaRankAlgorithm(
             ctx,
             metrics=metrics,
-            corrections=[self.correction_classess[idx]() for idx in correction_ids],
+            corrections=[self.correction_classes[idx]() for idx in correction_ids],
             metrics_combine_strategy=BandMetricsCombiner.Strategy(metric_merge_strategy),
             group_ids_path=group_ids_path
         )
 
-        scores_per_group = algorithm.evaluate()
-        output_dir = self._get_output_dir(qgis_params=parameters, qgis_context=ctx.qgis_context)
-        output_files = self._export_results(ctx, scores_per_group, output_dir)
-        return output_files
+        return algorithm.evaluate()
 
     def _ctx_additional_kw_args(
             self,
@@ -377,53 +328,8 @@ class MultiCriteriaRankProcessingAlgorithm(TopocorrectionEvaluationAlgorithm):
             'task_timeout': self.parameterAsInt(parameters, 'TASK_TIMEOUT', context)
         }
 
-    def _export_results(
-            self,
-            ctx: QgisExecutionContext,
-            scores_per_group: list[GroupResult],
-            output_directory_path: str = None):
-
-        output_files = dict()
-        for group_result in scores_per_group:
-            ctx.log(f"------------------ Results for group-{group_result.group_idx}:")
-            group_result.score_per_correction.sort_values(by='Score', ascending=False, inplace=True)
-            formatted_table = tabulate(group_result.score_per_correction, headers='keys', tablefmt='simple_outline')
-            ctx.log(formatted_table)
-
-            if output_directory_path is not None:
-                out_path = os.path.join(output_directory_path, f"group_{group_result.group_idx}.xlsx")
-                self._export_to_excel(out_path, group_result)
-                output_files[f'OUT_{group_result.group_idx}'] = out_path
-        return output_files
-
-    def _export_to_excel(self, output_path: str, group_result: GroupResult):
-        writer = pd.ExcelWriter(output_path, engine='xlsxwriter')
-
-        self._export_excel_sheet(writer, group_result.score_per_correction, 'Scores')
-        self._export_excel_sheet(writer, group_result.extended_metrics, 'Metrics', column_offset=2)
-        self._export_excel_sheet(writer, group_result.normalized_metrics, 'Normalized metrics', column_offset=2)
-
-        writer.save()
-
-    def _export_excel_sheet(self, writer: ExcelWriter, df: DataFrame, sheet_name: str, column_offset=1):
-        worksheet = writer.book.add_worksheet(sheet_name)
-        writer.sheets[sheet_name] = worksheet
-
-        df.to_excel(writer, sheet_name=sheet_name, startrow=1, header=False)
-
-        # Add a header format.
-        header_format = writer.book.add_format({
-            'bold': True,
-            'text_wrap': True,
-            'valign': 'top',
-            'fg_color': '#D7E4BC',
-            'border': 1})
-
-        # worksheet.write(0, 1, "Band", header_format)
-        worksheet.set_column(0, 0, 20)
-
-        # Write the column headers with the defined format.
-        for col_num, column in enumerate(df.columns.values):
-            column_length = max(df[column].astype(str).map(len).max(), len(column))
-            worksheet.write(0, col_num + column_offset, column, header_format)
-            worksheet.set_column(col_num + column_offset, col_num + column_offset, column_length)
+    def _log_result(self, ctx: QgisExecutionContext, group_result: GroupResult):
+        ctx.log(f"------------------ Results for group-{group_result.group_idx}:")
+        formatted_table = tabulate(group_result.data_frames['Scores'].df, headers='keys',
+                                   tablefmt='simple_outline')
+        ctx.log(formatted_table)

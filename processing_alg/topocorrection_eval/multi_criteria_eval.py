@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict
 
 import numpy as np
@@ -23,7 +23,7 @@ from ..execution_context import QgisExecutionContext
 @dataclass
 class DataFrameResult:
     df: DataFrame
-    column_offset: int = 1
+    columns: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -58,7 +58,7 @@ class MultiCriteriaEvalAlgorithm(EvaluationAlgorithm, MergeStrategy):
     def merge(self, metrics: list[list[float]], group_idx):
         metrics_df = pd.DataFrame(metrics, columns=self.metrics_dict.keys())
         return [GroupResult(group_idx, {
-            'metrics': DataFrameResult(metrics_df)
+            'metrics': DataFrameResult(metrics_df, ['Band'])
         })]
 
     def _compute_stats(self, data):
@@ -97,15 +97,7 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             )
         )
 
-        self.addParameter(
-            QgsProcessingParameterEnum(
-                'METRICS',
-                self.tr('Metrics'),
-                options=[c.name() for c in self.metric_classes],
-                allowMultiple=True,
-                defaultValue=[idx for idx, _ in enumerate(self.metric_classes)]
-            )
-        )
+        self.addParameter(self._metrics_param())
 
         classification_map_param = QgsProcessingParameterRasterLayer(
             'CLASSIFICATION_MAP',
@@ -114,26 +106,31 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         )
         self._additional_param(classification_map_param)
 
+    def _metrics_param(self):
+        return QgsProcessingParameterEnum(
+            'METRICS',
+            self.tr('Metrics'),
+            options=[c.name() for c in self.metric_classes],
+            allowMultiple=True,
+            defaultValue=[idx for idx, _ in enumerate(self.metric_classes)]
+        )
+
     def createInstance(self):
         return MultiCriteriaEvaluationProcessingAlgorithm()
 
     def name(self):
-        """
-        Returns the unique algorithm name.
-        """
         return 'multi_criteria_eval'
 
     def displayName(self):
-        """
-        Returns the translated algorithm name.
-        """
         return self.tr('Multi-criteria TOC evaluation')
 
     def shortHelpString(self):
-        """
-        Returns a localised short help string for the algorithm.
-        """
-        return self.tr('TODO')
+        return self.tr("Multi-criteria TOC evaluation based on statistical metrics. "
+                       "Current implementation contains following metrics: \n"
+                       + '\n'.join([f'<b>{metric.id()}</b>: {metric.name()}' for metric in self.metric_classes])
+                       + "\n<b>Note:</b> the illumination model of the input raster image is calculated automatically, "
+                       "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
+                       "the same CRS, extent and spatial resolution.")
 
     def add_output_param(self):
         self.addParameter(
@@ -211,11 +208,11 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         writer = pd.ExcelWriter(output_path, engine='xlsxwriter')
 
         for sheet_name, df_result in group_result.data_frames.items():
-            self._export_excel_sheet(writer, df_result.df, sheet_name, column_offset=df_result.column_offset)
+            self._export_excel_sheet(writer, df_result.df, sheet_name, columns=df_result.columns)
 
         writer.save()
 
-    def _export_excel_sheet(self, writer: ExcelWriter, df: DataFrame, sheet_name: str, column_offset=1):
+    def _export_excel_sheet(self, writer: ExcelWriter, df: DataFrame, sheet_name: str, columns: list[str]):
         worksheet = writer.book.add_worksheet(sheet_name)
         writer.sheets[sheet_name] = worksheet
 
@@ -229,11 +226,16 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             'fg_color': '#D7E4BC',
             'border': 1})
 
-        # worksheet.write(0, 1, "Band", header_format)
+        col_num = 0
+        for column in columns:
+            worksheet.write(0, col_num, column, header_format)
+            col_num += 1
+
         worksheet.set_column(0, 0, 20)
 
         # Write the column headers with the defined format.
-        for col_num, column in enumerate(df.columns.values):
+        for column in df.columns.values:
             column_length = max(df[column].astype(str).map(len).max(), len(column))
-            worksheet.write(0, col_num + column_offset, column, header_format)
-            worksheet.set_column(col_num + column_offset, col_num + column_offset, column_length)
+            worksheet.write(0, col_num, column, header_format)
+            worksheet.set_column(col_num, col_num, column_length)
+            col_num += 1
