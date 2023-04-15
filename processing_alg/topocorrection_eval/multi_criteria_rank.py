@@ -149,23 +149,25 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
             metrics[metric_id] = metric.combine(orig_metrics[metric_id], metrics[metric_id])
 
         weights = [metric.weight for metric in self.metrics_dict.values()]
-        correction_metrics = metrics.drop(self.ORIGINAL_IMAGE_KEY)
 
-        normalized_metrics: DataFrame = self._normalize(correction_metrics, orig_metrics)
+        normalized_metrics: DataFrame = self._normalize(metrics, orig_metrics)
         return (normalized_metrics * weights).sum(1), normalized_metrics
 
     def _normalize(self, group_result: DataFrame, orig_metrics: DataFrame) -> DataFrame:
         good_results = group_result.where(group_result.ge(orig_metrics, level=1))
-        norm_good_results = self._normalize_single(good_results)
+        norm_good_results = self._normalize_single(good_results, metrics_min=orig_metrics)
 
         bad_results = group_result.where(group_result.lt(orig_metrics, level=1))
-        norm_bad_results = self._normalize_single(bad_results) - 1
+        norm_bad_results = self._normalize_single(bad_results, metrics_max=orig_metrics) - 1
 
         norm_good_results.fillna(norm_bad_results, inplace=True)
-        return norm_good_results.replace([np.inf, np.nan], 1)
+        return norm_good_results.drop(self.ORIGINAL_IMAGE_KEY)
 
-    def _normalize_single(self, metrics: DataFrame):
-        metrics_min, metrics_max = metrics.min(level=1), metrics.max(level=1)
+    def _normalize_single(self, metrics: DataFrame, metrics_min=None, metrics_max=None):
+        if metrics_min is None:
+            metrics_min = metrics.min(level=1)
+        if metrics_max is None:
+            metrics_max = metrics.max(level=1)
         return metrics.subtract(metrics_min, level=1).divide(metrics_max - metrics_min, level=1)
 
     def _perform_topo_corrections_parallel(self):
