@@ -1,6 +1,6 @@
 from qgis.core import QgsProcessingLayerPostProcessorInterface, QgsRasterLayer
 
-from ...computation.gdal_utils import copy_band_descriptions
+from ...util.gdal_utils import copy_band_descriptions
 
 
 class TopoCorrectionPostProcessor(QgsProcessingLayerPostProcessorInterface):

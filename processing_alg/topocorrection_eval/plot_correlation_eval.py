@@ -10,7 +10,7 @@ from .correlation_eval import CorrelationEvaluationProcessingAlgorithm, Correlat
     CorrelationNodeInfo
 from .eval import SubplotMergeStrategy, PlotPerFileMergeStrategy
 from ..execution_context import QgisExecutionContext
-from ...computation.plot_utils import norm_from_scale
+from ...util.plot_utils import norm_from_scale
 
 
 def draw_subplot(

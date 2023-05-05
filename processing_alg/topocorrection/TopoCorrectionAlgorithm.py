@@ -9,8 +9,22 @@ import processing
 from qgis.core import QgsProcessingException
 
 from ..execution_context import QgisExecutionContext, SerializableQgisExecutionContext
-from ...computation.qgis_utils import init_qgis_env
-from ...computation.raster_calc import SimpleRasterCalc, RasterInfo
+from ...util.gdal_utils import get_raster_type
+from ...util.raster_calc import SimpleRasterCalc, RasterInfo
+
+GDAL_DATATYPES = [
+    'Byte',
+    'Int16',
+    'UInt16',
+    'UInt32',
+    'Int32',
+    'Float32',
+    'Float64',
+    'CInt16',
+    'CInt32',
+    'CFloat32',
+    'CFloat64'
+]
 
 
 class TopoCorrectionAlgorithm:
@@ -37,15 +51,17 @@ class TopoCorrectionAlgorithm:
 
         ctx.log(f"start merge results for {self.get_name()}")
 
-        processing_func = processing.runAndLoadResults if ctx.need_load else processing.run
+        out_type_name = get_raster_type(ctx.input_layer_path)
+        out_type_ordinal = GDAL_DATATYPES.index(out_type_name)
 
+        processing_func = processing.runAndLoadResults if ctx.need_load else processing.run
         results = processing_func(
             "gdal:merge",
             {
                 'INPUT': result_bands,
                 'PCT': False,
                 'SEPARATE': True,
-                'DATA_TYPE': 5,
+                'DATA_TYPE': out_type_ordinal,
                 'OUTPUT': ctx.output_file_path
             },
             feedback=ctx.qgis_feedback,
@@ -73,7 +89,7 @@ class TopoCorrectionAlgorithm:
                     executor.shutdown(cancel_futures=True)
                     return None
 
-                result_bands.append(self.output_file_path(str(band_idx)))
+                result_bands.append(self.output_file_path(ctx, str(band_idx)))
 
             for band_idx, future in enumerate(futures):
                 future.result(timeout=ctx.task_timeout)
@@ -96,9 +112,9 @@ class TopoCorrectionAlgorithm:
 
         return result_bands
 
-    def output_file_path(self, postfix=''):
+    def output_file_path(self, ctx, postfix=''):
         return os.path.join(
-            tempfile.gettempdir(),
+            ctx.tmp_dir,
             f'{self.get_name()}_{self.salt}_{postfix}.tif'
         )
 
@@ -108,7 +124,7 @@ class TopoCorrectionAlgorithm:
         if ctx.is_canceled():
             raise RuntimeError("Canceled")
 
-        out_path = self.output_file_path(out_file_postfix)
+        out_path = self.output_file_path(ctx, out_file_postfix)
 
         calc_start = time.process_time_ns()
         self.calc.calculate(

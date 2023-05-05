@@ -2,8 +2,10 @@ import multiprocessing
 import os
 import platform
 import sys
+from pathlib import Path
 
 from processing import Processing
+from qgis._core import QgsProcessingParameterRasterDestination
 from qgis.core import QgsApplication, QgsProcessingContext, QgsProcessingUtils, QgsProject, QgsRasterLayer
 
 _WIN_QGIS_PATH = None
@@ -12,7 +14,6 @@ _WIN_QGIS_PATH = None
 def set_multiprocessing_metadata():
     if platform.system() == 'Windows':
         global _WIN_QGIS_PATH
-        # _WIN_QGIS_PATH = str(Path(sys.executable).parent.parent)
         _WIN_QGIS_PATH = os.environ["QGIS_PREFIX_PATH"]
         multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'pythonw.exe'))
 
@@ -40,6 +41,11 @@ def add_layer_to_load(context, layer_path, name="out"):
             layerTypeHint=QgsProcessingUtils.LayerHint.Raster
         )
     )
+
+
+def get_project_tmp_dir():
+    tmp_param = QgsProcessingParameterRasterDestination(name="foo")
+    return str(Path(tmp_param.generateTemporaryDestination()).parent.absolute())
 
 
 def set_layers_to_load(context, layers_with_names):

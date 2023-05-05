@@ -1,14 +1,18 @@
 import logging
 import os
+import random
+import tempfile
 from dataclasses import dataclass
-from math import radians, cos
+from math import radians, cos, sin
 from typing import Dict, Any
 
+import numpy as np
 import processing
 from qgis.core import QgsProcessingContext, QgsProcessingFeedback, QgsRasterLayer
 
-from ..computation.gdal_utils import read_band_as_array
-from ..computation.qgis_utils import check_compatible, set_multiprocessing_metadata, qgis_path
+from ..util.gdal_utils import read_band_as_array
+from ..util.qgis_utils import check_compatible, set_multiprocessing_metadata, qgis_path
+from ..util.raster_calc import SimpleRasterCalc, RasterInfo
 
 
 @dataclass
@@ -22,6 +26,7 @@ class ExecutionContext:
     task_timeout: int = 10000
     keep_in_memory: bool = True
     qgis_dir: str = None
+    tmp_dir: str = tempfile.gettempdir()
     need_load: bool = False
     _slope_path: str = None
     _aspect_path: str = None
@@ -73,6 +78,7 @@ class QgisExecutionContext(ExecutionContext):
             qgis_params: Dict[str, Any],
             input_layer: QgsRasterLayer,
             dem_layer: QgsRasterLayer,
+            tmp_dir: str = tempfile.gettempdir(),
             output_file_path: str = None,
             sza_degrees: float = None,
             solar_azimuth_degrees: float = None,
@@ -88,13 +94,15 @@ class QgisExecutionContext(ExecutionContext):
             run_parallel=run_parallel,
             task_timeout=task_timeout,
             keep_in_memory=keep_in_memory,
-            need_load=True
+            need_load=True,
+            tmp_dir=tmp_dir
         )
         check_compatible(input_layer, dem_layer)
         self.dem_layer = dem_layer
         self.qgis_context = qgis_context
         self.qgis_feedback = qgis_feedback
         self.qgis_params = qgis_params
+        self.calc = SimpleRasterCalc()
 
     def is_canceled(self):
         return self.qgis_feedback.isCanceled()
@@ -210,22 +218,21 @@ class QgisExecutionContext(ExecutionContext):
         sza_radians = radians(self.sza_degrees)
         solar_azimuth_radians = radians(self.solar_azimuth_degrees)
 
-        results = processing.run(
-            'gdal:rastercalculator',
-            {
-                'INPUT_A': slope_path,
-                'BAND_A': 1,
-                'INPUT_B': aspect_path,
-                'BAND_B': 1,
-                'FORMULA': f'fmax(0.0, (cos({sza_radians})*cos(A) + '
-                           f'sin({sza_radians})*sin(A)*cos(B - {solar_azimuth_radians})))',
-                'OUTPUT': 'TEMPORARY_OUTPUT',
-            },
-            feedback=self.qgis_feedback,
-            context=self.qgis_context,
-            is_child_algorithm=True
+        result_path = os.path.join(self.tmp_dir, f"luminance_{random.randint(0, 9999)}.tif")
+
+        def calc_function(slope, aspect):
+            return np.fmax(
+                0.0,
+                cos(sza_radians)*np.cos(slope) +
+                sin(sza_radians)*np.sin(slope)*np.cos(aspect - solar_azimuth_radians))
+
+        self.calc.calculate(
+            calc_function,
+            result_path,
+            [RasterInfo("slope", slope_path),
+             RasterInfo("aspect", aspect_path)]
         )
-        result_path = results['OUTPUT']
+
         return result_path
 
 
@@ -248,6 +255,7 @@ class SerializableQgisExecutionContext(ExecutionContext):
             task_timeout=ctx.task_timeout,
             keep_in_memory=ctx.keep_in_memory,
             qgis_dir=qgis_path(),
+            tmp_dir=ctx.tmp_dir,
             need_load=False
         )
 
@@ -257,7 +265,6 @@ class SerializableQgisExecutionContext(ExecutionContext):
 
     @property
     def qgis_feedback(self):
-
         class InnerFeedback(QgsProcessingFeedback):
             def __init__(inner, logFeedback: bool):
                 super().__init__(logFeedback)
@@ -273,7 +280,8 @@ class SerializableQgisExecutionContext(ExecutionContext):
         return dict()
 
     def log(self, message: str):
-        logging.basicConfig(level=logging.INFO,
-                            filename=fr"D:\PyCharmProjects\QgisPlugin\log\log-{os.path.basename(self.output_file_path)}.log",
-                            filemode="w")
+        # TODO
+        # logging.basicConfig(level=logging.INFO,
+        #                     filename=fr"D:\PyCharmProjects\QgisPlugin\log\log-{os.path.basename(self.output_file_path)}.log",
+        #                     filemode="w")
         logging.info(message)

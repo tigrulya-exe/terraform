@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 from matplotlib import pyplot as plt
 
-from ...computation import gdal_utils
+from ...util import gdal_utils
 from ...processing_alg.execution_context import QgisExecutionContext
 
 

@@ -179,7 +179,8 @@ class RegressionSlopeMetric(EvalMetric):
         return "Slope of the regression between band values and solar incidence angle"
 
     def evaluate(self, values: list, ctx: EvalContext) -> float:
-        _, slope = np.polynomial.polynomial.polyfit(ctx.luminance_bytes, values, 1)
+        normalized_values = values - np.min(values)
+        _, slope = np.polynomial.polynomial.polyfit(ctx.luminance_bytes, normalized_values, 1)
         return abs(slope)
 
 

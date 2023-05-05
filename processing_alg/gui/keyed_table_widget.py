@@ -9,7 +9,7 @@ from qgis.PyQt.QtGui import QStandardItemModel, QStandardItem
 from qgis.PyQt.QtWidgets import QDialog, QAbstractItemView, QHeaderView
 from qgis.gui import QgsGui
 
-from ...computation import qgis_utils
+from ...util import qgis_utils
 
 pluginPath = os.path.split(os.path.dirname(__file__))[0]
 

@@ -2,7 +2,7 @@ import numpy as np
 
 from .SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation.raster_calc import RasterInfo
+from ...util.raster_calc import RasterInfo
 
 
 # from numba import njit

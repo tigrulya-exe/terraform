@@ -4,8 +4,8 @@ import numpy as np
 
 from .MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation.gdal_utils import read_band_flat
-from ...computation.raster_calc import RasterInfo
+from ...util.gdal_utils import read_band_flat
+from ...util.raster_calc import RasterInfo
 
 
 class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
@@ -16,8 +16,8 @@ class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
     def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
 
-        def calculate_h(**kwargs):
-            return (1 - kwargs["slope"]) / pi
+        def calculate_h(slope):
+            return (1 - slope) / pi
 
         self.h0 = (pi + 2 * radians(ctx.solar_azimuth_degrees)) / (2 * pi)
         self.h = self.raster_calculate(
@@ -30,11 +30,7 @@ class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         c = self.calculate_c(ctx, band_idx)
 
-        def calculate(**kwargs):
-            input_band = kwargs["input"]
-            luminance = kwargs["luminance"]
-            h = kwargs["h"]
-
+        def calculate(input_band, luminance, h):
             denominator = luminance + c * h
             return input_band * np.divide(
                 ctx.sza_cosine() + c * self.h0,
@@ -47,7 +43,7 @@ class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("input", ctx.input_layer_path, band_idx + 1),
+                RasterInfo("input_band", ctx.input_layer_path, band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
                 RasterInfo("h", self.h, 1),
             ],

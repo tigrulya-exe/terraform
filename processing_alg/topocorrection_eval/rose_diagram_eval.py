@@ -12,7 +12,7 @@ from .OutputFormatMixin import OutputFormatMixin
 from .eval import MergeStrategy, EvaluationAlgorithm, SubplotMergeStrategy, PlotPerFileMergeStrategy
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation import gdal_utils
+from ...util import gdal_utils
 
 MPLT_MARKERS = "ov^<>1235sp*X"
 MPLT_COLOURS = "bgrcmyk"

@@ -8,35 +8,6 @@ from osgeo.gdalconst import GA_ReadOnly
 gdal.UseExceptions()
 
 
-class OutOfCoreRegressor:
-    def __init__(self):
-        self.weights = np.array([])
-        self.x_sum = 0.0
-        self.x_square_sum = 0.0
-        self.y_sum = 0.0
-        self.xy_sum = 0.0
-        self.elements_num = 0
-
-    def partial_train(self, x, y):
-        np.set_printoptions(threshold=np.inf)
-
-        x_flat = x.ravel()
-        y_flat = y.ravel()
-        self.x_sum += np.sum(x_flat)
-        self.y_sum += np.sum(y_flat)
-        self.x_square_sum += np.dot(x_flat, x_flat.T)
-        self.xy_sum += np.dot(x_flat, y_flat.T)
-        self.elements_num += len(x_flat)
-
-    def train(self):
-        a = np.array([
-            [self.x_square_sum, self.x_sum],
-            [self.x_sum, self.elements_num],
-        ], dtype='float')
-        b = np.array([self.xy_sum, self.y_sum], dtype='float')
-        return np.linalg.solve(a, b)
-
-
 def open_img(path, access=GA_ReadOnly):
     ds = gdal.Open(path, access)
 
@@ -50,8 +21,10 @@ def read_band_as_array(path: str, band_idx: int = 1):
     ds = open_img(path)
     return ds.GetRasterBand(band_idx).ReadAsArray()
 
+
 def read_band_flat(path: str, band_idx: int = 1):
     return read_band_as_array(path, band_idx=band_idx).ravel()
+
 
 def raster_linear_regression(x_path: str, y_path: str, x_band: int = 1, y_band: int = 1):
     x_flat = read_band_as_array(x_path, x_band).ravel()
@@ -59,32 +32,6 @@ def raster_linear_regression(x_path: str, y_path: str, x_band: int = 1, y_band: 
 
     res = np.polynomial.polynomial.polyfit(x_flat, y_flat, 1)
     return res
-
-
-def raster_partial_linear_regression(x_path: str, y_path: str) -> List[List[float]]:
-    x_ds = open_img(x_path)
-    y_ds = open_img(y_path)
-
-    band_weights = []
-    # todo generalise it
-    x_band = x_ds.GetRasterBand(1)
-    for iBand in range(1, y_ds.RasterCount + 1):
-        y_band = y_ds.GetRasterBand(iBand)
-
-        regressor = OutOfCoreRegressor()
-        for i in range(y_band.YSize):
-            x_scanline = read_hline(x_band, i)
-            y_scanline = read_hline(y_band, i)
-
-            regressor.partial_train(x_scanline, y_scanline)
-
-        weights = regressor.train()
-        band_weights.append(weights)
-
-    x_ds = None
-    y_ds = None
-
-    return band_weights
 
 
 def compute_band_means(input_path: str) -> List[float]:
@@ -117,6 +64,11 @@ def read_hline(band: Band, y_offset: int):
         buf_xsize=band.XSize,
         buf_ysize=1
     )
+
+
+def get_raster_type(path: str):
+    band = open_img(path).GetRasterBand(1)
+    return gdal.GetDataTypeName(band.DataType)
 
 
 def copy_band_descriptions(source_path, destination_path):

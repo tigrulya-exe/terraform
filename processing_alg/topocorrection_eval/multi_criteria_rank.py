@@ -25,8 +25,8 @@ from ..execution_context import QgisExecutionContext, SerializableQgisExecutionC
 from ..gui.keyed_table_widget import KeyedTableWidgetWrapper
 from ..topocorrection import DEFAULT_CORRECTIONS
 from ..topocorrection.TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
-from ...computation.gdal_utils import open_img
-from ...computation.qgis_utils import init_qgis_env, table_from_matrix_list
+from ...util.gdal_utils import open_img
+from ...util.qgis_utils import init_qgis_env, table_from_matrix_list
 
 
 class BandMetricsCombiner:

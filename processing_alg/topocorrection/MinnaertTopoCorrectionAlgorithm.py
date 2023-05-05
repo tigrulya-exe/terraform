@@ -1,9 +1,9 @@
 import numpy as np
 
-from ...computation.gdal_utils import read_band_flat
+from ...util.gdal_utils import read_band_flat
 from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation.raster_calc import RasterInfo
+from ...util.raster_calc import RasterInfo
 
 
 class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
@@ -23,10 +23,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         k = self.calculate_k(ctx, band_idx)
 
-        def calculate(**kwargs):
-            input_band = kwargs["input"]
-            luminance = kwargs["luminance"]
-
+        def calculate(input_band, luminance):
             quotient = np.divide(
                 ctx.sza_cosine(),
                 luminance,
@@ -39,7 +36,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("input", ctx.input_layer_path, band_idx + 1),
+                RasterInfo("input_band", ctx.input_layer_path, band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1)
             ],
             out_file_postfix=band_idx
@@ -56,10 +53,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         return slope
 
     def calculate_x(self, ctx: QgisExecutionContext) -> str:
-        def calculate(**kwargs):
-            luminance = kwargs["luminance"]
-            slope = kwargs["slope"]
-
+        def calculate(luminance, slope):
             return np.log(
                 np.cos(slope) * luminance,
                 out=np.full_like(slope, -10),
@@ -77,10 +71,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         )
 
     def calculate_y(self, ctx: QgisExecutionContext, band_idx: int) -> str:
-        def calculate(**kwargs):
-            input_raster = kwargs["input"]
-            slope = kwargs["slope"]
-
+        def calculate(input_raster, slope):
             return np.log(
                 np.cos(slope) * input_raster,
                 out=np.full_like(slope, -10),
@@ -91,7 +82,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("input", ctx.input_layer_path, band_idx + 1),
+                RasterInfo("input_raster", ctx.input_layer_path, band_idx + 1),
                 RasterInfo("slope", ctx.slope_path, 1)
             ],
             out_file_postfix=f"minnaert_y_{band_idx}"

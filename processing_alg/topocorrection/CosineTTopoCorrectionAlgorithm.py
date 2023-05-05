@@ -2,7 +2,7 @@ import numpy as np
 
 from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation.raster_calc import RasterInfo
+from ...util.raster_calc import RasterInfo
 
 
 class CosineTTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
@@ -11,10 +11,7 @@ class CosineTTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
         return "COSINE-T"
 
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
-        def calculate(**kwargs):
-            input_band = kwargs["input"]
-            luminance = kwargs["luminance"]
-
+        def calculate(input_band, luminance):
             return input_band * np.divide(
                 ctx.sza_cosine(),
                 luminance,
@@ -26,7 +23,7 @@ class CosineTTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("input", ctx.input_layer_path, band_idx + 1),
+                RasterInfo("input_band", ctx.input_layer_path, band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
             ],
             out_file_postfix=band_idx

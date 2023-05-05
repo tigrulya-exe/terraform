@@ -7,7 +7,7 @@ name=Terraform topographic correction
 qgisMinimumVersion=3.0
 description=Topographically correct provided input layer.
 version=0.1
-author=Tigran Manasyan
+author=Tigran Manasyan, Nikolay Dobretsov
 email=t.manasyan@g.nsu.ru
 
 about=Topographically correct provided input layer.

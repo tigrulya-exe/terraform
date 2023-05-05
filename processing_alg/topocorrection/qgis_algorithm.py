@@ -49,7 +49,7 @@ from .TopoCorrectionPostProcessor import TopoCorrectionPostProcessor
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
 from ..topocorrection import DEFAULT_CORRECTIONS
-from ...computation.qgis_utils import add_layer_to_load
+from ...util.qgis_utils import add_layer_to_load, get_project_tmp_dir
 
 
 class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
@@ -227,7 +227,8 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
                     sza_degrees=solar_zenith_angle,
                     solar_azimuth_degrees=solar_azimuth,
                     run_parallel=run_parallel,
-                    task_timeout=task_timeout
+                    task_timeout=task_timeout,
+                    tmp_dir=get_project_tmp_dir()
                 )
                 inner.salt = random.randint(1, 100000)
 

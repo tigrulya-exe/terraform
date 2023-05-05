@@ -11,6 +11,7 @@ from qgis.core import (QgsProcessingContext,
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
 from ...computation.qgis_utils import set_layers_to_load
+from ...util.qgis_utils import get_project_tmp_dir
 
 
 class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
@@ -71,6 +72,7 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
             input_layer=input_layer,
             dem_layer=dem_layer,
             output_file_path=output_file_path,
+            tmp_dir=get_project_tmp_dir(),
             **self._ctx_additional_kw_args(parameters, context)
         )
 

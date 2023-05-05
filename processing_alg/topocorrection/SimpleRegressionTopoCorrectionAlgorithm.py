@@ -5,7 +5,7 @@ import numpy as np
 
 from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation.gdal_utils import read_band_flat
+from ...util.gdal_utils import read_band_flat
 
 
 class SimpleRegressionTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):

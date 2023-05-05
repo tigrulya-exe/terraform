@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+from osgeo import gdal
 
 from processing_alg.topocorrection_eval.metrics import EvalMetric
 
@@ -32,3 +33,12 @@ class TestEvalMetrics(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+# TODO
+def create_test_file(outFileName, xsize=200, ysize=100, generator=lambda x, y: x * y):
+    driver = gdal.GetDriverByName("GTiff")
+    outdata = driver.Create(outFileName, xsize=xsize, ysize=ysize, bands=1, eType=gdal.GDT_Int32)
+
+    raster = np.array([[generator(x, y) for x in range(xsize)] for y in range(ysize)])
+
+    outdata.GetRasterBand(1).WriteArray(raster)

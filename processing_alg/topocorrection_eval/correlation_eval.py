@@ -10,7 +10,7 @@ from qgis.core import QgsProcessingParameterRasterLayer, \
 from .eval import EvaluationAlgorithm, MergeStrategy, PerFileMergeStrategy
 from .qgis_algorithm import TopocorrectionEvaluationAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation import gdal_utils
+from ...util import gdal_utils
 
 
 class CorrelationNodeInfo:
@@ -156,8 +156,7 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
             self,
             parameters: Dict[str, Any],
             context: QgisExecutionContext,
-            feedback: QgsProcessingFeedback
-    ):
+            feedback: QgsProcessingFeedback):
         group_ids_layer = self.parameterAsRasterLayer(parameters, 'CLASSIFICATION_MAP', context.qgis_context)
         group_ids_path = None if group_ids_layer is None else group_ids_layer.source()
         paths_with_names = self._compute_correlation(context, group_ids_path)

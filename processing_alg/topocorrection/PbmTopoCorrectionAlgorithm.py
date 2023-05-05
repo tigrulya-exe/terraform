@@ -2,7 +2,7 @@ import numpy as np
 
 from .MinnaertTopoCorrectionAlgorithm import MinnaertTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation.raster_calc import RasterInfo
+from ...util.raster_calc import RasterInfo
 
 
 class PbmTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
@@ -13,10 +13,8 @@ class PbmTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         k = self.calculate_k(ctx, band_idx)
 
-        def calculate(**kwargs):
-            input_band = kwargs["input"]
-            luminance = kwargs["luminance"]
-            slope_cos = np.cos(kwargs["slope"])
+        def calculate(input_band, luminance, slope):
+            slope_cos = np.cos(slope)
 
             return input_band * np.divide(
                 slope_cos,
@@ -29,7 +27,7 @@ class PbmTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("input", ctx.input_layer_path, band_idx + 1),
+                RasterInfo("input_band", ctx.input_layer_path, band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
                 RasterInfo("slope", ctx.slope_path, 1)
             ],

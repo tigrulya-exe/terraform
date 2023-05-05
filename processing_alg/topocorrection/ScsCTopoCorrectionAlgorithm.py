@@ -2,7 +2,7 @@ import numpy as np
 
 from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...computation.raster_calc import RasterInfo
+from ...util.raster_calc import RasterInfo
 
 
 class ScsCTopoCorrectionAlgorithm(CTopoCorrectionAlgorithm):
@@ -13,11 +13,7 @@ class ScsCTopoCorrectionAlgorithm(CTopoCorrectionAlgorithm):
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         c = self.calculate_c(ctx, band_idx)
 
-        def calculate(**kwargs):
-            input_band = kwargs["input"]
-            luminance = kwargs["luminance"]
-            slope = kwargs["slope"]
-
+        def calculate(input_band, luminance, slope):
             denominator = luminance + c
             return input_band * np.divide(
                 np.cos(slope) * ctx.sza_cosine() + c,
@@ -30,7 +26,7 @@ class ScsCTopoCorrectionAlgorithm(CTopoCorrectionAlgorithm):
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
-                RasterInfo("input", ctx.input_layer_path, band_idx + 1),
+                RasterInfo("input_band", ctx.input_layer_path, band_idx + 1),
                 RasterInfo("luminance", ctx.luminance_path, 1),
                 RasterInfo("slope", ctx.slope_path, 1)
             ],

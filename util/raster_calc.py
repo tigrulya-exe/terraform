@@ -13,6 +13,8 @@ class RasterInfo:
         self.band = band or 1
 
 
+# Rewrite of gdal raster calc, that accepts
+# computation func instead of expression
 class SimpleRasterCalc:
     def calculate(
             self,
