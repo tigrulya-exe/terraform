@@ -12,15 +12,14 @@ from pandas.core.groupby import SeriesGroupBy
 from qgis.core import (
     QgsProcessingParameterMatrix,
     QgsProcessingParameterEnum,
-    QgsProcessingParameterNumber,
-    QgsProcessingContext,
-    QgsProcessingParameterBoolean
+    QgsProcessingContext
 )
 from tabulate import tabulate
 
 from .eval import EvaluationAlgorithm, MergeStrategy
 from .metrics import EvalMetric, EvalContext, DEFAULT_METRICS
 from .multi_criteria_eval import MultiCriteriaEvaluationProcessingAlgorithm, GroupResult, DataFrameResult
+from ..ParallelProcessingParamMixin import ParallelProcessingParamMixin
 from ..execution_context import QgisExecutionContext, SerializableQgisExecutionContext
 from ..gui.keyed_table_widget import KeyedTableWidgetWrapper
 from ..topocorrection import DEFAULT_CORRECTIONS
@@ -95,7 +94,8 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
             'Scores': DataFrameResult(scores_per_correction_df, ['Correction']),
             'Metrics': DataFrameResult(group_df, ['Correction', 'Band']),
             'Normalized metrics': DataFrameResult(normalized_metrics, ['Correction', 'Band']),
-            'Per band metrics': DataFrameResult(metrics_per_correction_band_df.to_frame(name='Score'), ['Correction', 'Band'])
+            'Per band metrics': DataFrameResult(metrics_per_correction_band_df.to_frame(name='Score'),
+                                                ['Correction', 'Band'])
         })]
 
     def _compute_metrics_df(self, group_idx):
@@ -174,7 +174,7 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
         correction_ctx = SerializableQgisExecutionContext.from_ctx(self.ctx)
 
         futures = dict()
-        with ProcessPoolExecutor() as executor:
+        with ProcessPoolExecutor(max_workers=self.ctx.worker_count) as executor:
             for correction in self.corrections:
                 corrected_image_path = os.path.join(self.ctx.output_file_path, f"{correction.get_name()}.tif")
                 correction_future = executor.submit(topo_correction_entrypoint, correction_ctx, correction,
@@ -207,7 +207,7 @@ def topo_correction_entrypoint(ctx, correction, corrected_image_path):
     return corrected_image_path
 
 
-class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgorithm):
+class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgorithm, ParallelProcessingParamMixin):
     def __init__(self):
         super().__init__()
         self.correction_classes = DEFAULT_CORRECTIONS
@@ -242,21 +242,8 @@ class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgo
         )
         self._additional_param(metric_merge_strategy_param)
 
-        parallel_param = QgsProcessingParameterBoolean(
-            'RUN_PARALLEL',
-            self.tr('Run processing in parallel'),
-            defaultValue=False,
-            optional=True
-        )
-        self._additional_param(parallel_param)
-
-        task_timeout_param = QgsProcessingParameterNumber(
-            'TASK_TIMEOUT',
-            self.tr('Parallel task timeout in ms'),
-            defaultValue=10000,
-            type=QgsProcessingParameterNumber.Integer
-        )
-        self._additional_param(task_timeout_param)
+        params = self.parallel_run_params()
+        [self._additional_param(param) for param in params]
 
     def _metrics_param(self):
         def _default_metrics_gen():
@@ -291,10 +278,11 @@ class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgo
     def shortHelpString(self):
         return self.tr("Rank TOC algorithms by multi-criteria score based on statistical metrics. "
                        "Current implementation contains following metrics: \n"
-                       + '\n'.join([f'<b>{metric.id()}</b>: {metric.name()}' for metric in self.metric_classes.values()])
+                       + '\n'.join(
+            [f'<b>{metric.id()}</b>: {metric.name()}' for metric in self.metric_classes.values()])
                        + "\n<b>Note:</b> the illumination model of the input raster image is calculated automatically, "
-                       "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
-                       "the same CRS, extent and spatial resolution.")
+                         "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
+                         "the same CRS, extent and spatial resolution.")
 
     def _get_scores_per_groups(self, ctx: QgisExecutionContext, group_ids_path: str):
         correction_ids = self.parameterAsEnums(ctx.qgis_params, 'TOPO_CORRECTION_ALGORITHMS', ctx.qgis_context)
@@ -326,8 +314,9 @@ class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgo
         return {
             'sza_degrees': self.parameterAsDouble(parameters, 'SZA', context),
             'solar_azimuth_degrees': self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context),
-            'run_parallel': self.parameterAsBoolean(parameters, 'RUN_PARALLEL', context),
-            'task_timeout': self.parameterAsInt(parameters, 'TASK_TIMEOUT', context)
+            'run_parallel': self.get_run_parallel_param(parameters, context),
+            'task_timeout': self.get_parallel_timeout_param(parameters, context),
+            'worker_count': self.get_worker_count_param(parameters, context)
         }
 
     def _log_result(self, ctx: QgisExecutionContext, group_result: GroupResult):

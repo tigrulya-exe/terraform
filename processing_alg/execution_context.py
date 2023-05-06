@@ -24,6 +24,7 @@ class ExecutionContext:
     solar_azimuth_degrees: float = None
     run_parallel: bool = False
     task_timeout: int = 10000
+    worker_count: int = None
     keep_in_memory: bool = True
     qgis_dir: str = None
     tmp_dir: str = tempfile.gettempdir()
@@ -84,6 +85,7 @@ class QgisExecutionContext(ExecutionContext):
             solar_azimuth_degrees: float = None,
             run_parallel: bool = False,
             task_timeout: int = 10000,
+            worker_count: int = None,
             keep_in_memory: bool = True):
         super().__init__(
             input_layer_path=input_layer.source(),
@@ -93,6 +95,7 @@ class QgisExecutionContext(ExecutionContext):
             solar_azimuth_degrees=solar_azimuth_degrees,
             run_parallel=run_parallel,
             task_timeout=task_timeout,
+            worker_count=worker_count,
             keep_in_memory=keep_in_memory,
             need_load=True,
             tmp_dir=tmp_dir
@@ -253,6 +256,7 @@ class SerializableQgisExecutionContext(ExecutionContext):
             sza_degrees=ctx.sza_degrees,
             solar_azimuth_degrees=ctx.solar_azimuth_degrees,
             task_timeout=ctx.task_timeout,
+            worker_count=ctx.worker_count,
             keep_in_memory=ctx.keep_in_memory,
             qgis_dir=qgis_path(),
             tmp_dir=ctx.tmp_dir,

@@ -1,6 +1,5 @@
 import os
 import random
-import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor
 from typing import Dict, Any
@@ -12,7 +11,7 @@ from ..execution_context import QgisExecutionContext, SerializableQgisExecutionC
 from ...util.gdal_utils import get_raster_type
 from ...util.raster_calc import SimpleRasterCalc, RasterInfo
 
-GDAL_DATATYPES = [
+GDAL_MERGE_DATATYPES = [
     'Byte',
     'Int16',
     'UInt16',
@@ -52,7 +51,7 @@ class TopoCorrectionAlgorithm:
         ctx.log(f"start merge results for {self.get_name()}")
 
         out_type_name = get_raster_type(ctx.input_layer_path)
-        out_type_ordinal = GDAL_DATATYPES.index(out_type_name)
+        out_type_ordinal = GDAL_MERGE_DATATYPES.index(out_type_name)
 
         processing_func = processing.runAndLoadResults if ctx.need_load else processing.run
         results = processing_func(
@@ -79,7 +78,7 @@ class TopoCorrectionAlgorithm:
         futures = []
 
         # todo handle exceptions from executor
-        with ProcessPoolExecutor() as executor:
+        with ProcessPoolExecutor(max_workers=ctx.worker_count) as executor:
             for band_idx in range(ctx.input_layer_band_count):
                 future = executor.submit(_process_band_wrapper, self, serializable_ctx, band_idx)
                 futures.append(future)

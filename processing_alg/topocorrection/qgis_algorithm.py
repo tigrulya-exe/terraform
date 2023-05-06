@@ -41,18 +41,18 @@ from qgis.core import (QgsProcessingContext,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterRasterLayer,
                        QgsProcessingParameterRasterDestination)
-from qgis.core import QgsProcessingParameterBoolean
 
 from .CTopoCorrectionAlgorithm import CTopoCorrectionAlgorithm
 from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from .TopoCorrectionPostProcessor import TopoCorrectionPostProcessor
+from ..ParallelProcessingParamMixin import ParallelProcessingParamMixin
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
 from ..topocorrection import DEFAULT_CORRECTIONS
 from ...util.qgis_utils import add_layer_to_load, get_project_tmp_dir
 
 
-class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
+class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelProcessingParamMixin):
     class AuxiliaryLayers(Enum):
         ASPECT = 0
         SLOPE = 1
@@ -182,21 +182,8 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         )
         self._additional_param(show_layers_param)
 
-        parallel_param = QgsProcessingParameterBoolean(
-            'RUN_PARALLEL',
-            self.tr('Run processing in parallel'),
-            defaultValue=False,
-            optional=True
-        )
-        self._additional_param(parallel_param)
-
-        task_timeout_param = QgsProcessingParameterNumber(
-            'TASK_TIMEOUT',
-            self.tr('Parallel task timeout in ms'),
-            defaultValue=10000,
-            type=QgsProcessingParameterNumber.Integer
-        )
-        self._additional_param(task_timeout_param)
+        params = self.parallel_run_params()
+        [self._additional_param(param) for param in params]
 
     def processAlgorithm(
             self,
@@ -210,8 +197,9 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
         solar_azimuth = self.parameterAsDouble(parameters, 'SOLAR_AZIMUTH', context)
 
         self.show_tmp_layers = self.parameterAsEnums(parameters, 'SHOW_AUXILIARY_LAYERS', context)
-        run_parallel = self.parameterAsBoolean(parameters, 'RUN_PARALLEL', context)
-        task_timeout = self.parameterAsInt(parameters, 'TASK_TIMEOUT', context)
+        run_parallel = self.get_run_parallel_param(parameters, context)
+        task_timeout = self.get_parallel_timeout_param(parameters, context)
+        worker_count = self.get_worker_count_param(parameters, context)
 
         output_file_path = self.parameterAsFileOutput(parameters, 'OUTPUT', context)
 
@@ -228,6 +216,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm):
                     solar_azimuth_degrees=solar_azimuth,
                     run_parallel=run_parallel,
                     task_timeout=task_timeout,
+                    worker_count=worker_count,
                     tmp_dir=get_project_tmp_dir()
                 )
                 inner.salt = random.randint(1, 100000)
