@@ -4,6 +4,7 @@ import random
 import tempfile
 from dataclasses import dataclass
 from math import radians, cos, sin
+from pathlib import Path
 from typing import Dict, Any
 
 import numpy as np
@@ -48,6 +49,10 @@ class ExecutionContext:
     @property
     def luminance_path(self):
         return self._luminance_path
+
+    @property
+    def input_file_name(self) -> str:
+        return Path(self.input_layer_path).stem
 
     @property
     def luminance_bytes(self):

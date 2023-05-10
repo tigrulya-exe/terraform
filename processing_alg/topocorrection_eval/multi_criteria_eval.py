@@ -129,8 +129,8 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
                        "Current implementation contains following metrics: \n"
                        + '\n'.join([f'<b>{metric.id()}</b>: {metric.name()}' for metric in self.metric_classes])
                        + "\n<b>Note:</b> the illumination model of the input raster image is calculated automatically, "
-                       "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
-                       "the same CRS, extent and spatial resolution.")
+                         "based on the provided DEM layer. Currently, the input raster image and the DEM must have "
+                         "the same CRS, extent and spatial resolution.")
 
     def add_output_param(self):
         self.addParameter(
@@ -196,7 +196,8 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             self._log_result(ctx, group_result)
 
             if output_directory_path is not None:
-                out_path = os.path.join(output_directory_path, f"group_{group_result.group_idx}.xlsx")
+                out_path = os.path.join(output_directory_path,
+                                        f"{ctx.input_file_name}_ranks_group_{group_result.group_idx}.xlsx")
                 self._export_to_excel(out_path, group_result)
                 output_files[f'OUT_{group_result.group_idx}'] = out_path
         return output_files

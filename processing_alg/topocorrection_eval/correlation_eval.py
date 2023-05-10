@@ -176,7 +176,7 @@ class CorrelationEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
         bins = self.parameterAsInt(ctx.qgis_params, 'BIN_COUNT', ctx.qgis_context)
 
         def generate_file_name(node: CorrelationNodeInfo):
-            return f"correlation_{node.group_idx}_{node.name}.tif"
+            return f"{ctx.input_file_name}_correlation_{node.group_idx}_{node.name}.tif"
 
         merge_strategy = CorrelationPerFileMergeStrategy(
             ctx.output_file_path,

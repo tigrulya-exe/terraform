@@ -355,7 +355,7 @@ class RoseDiagramEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
             )
         else:
             def generate_file_name(nodes: list[RoseDiagramsNodeInfo]):
-                filename = f"rose_diagram_group_{nodes[0].group_idx}.{output_format}"
+                filename = f"{ctx.input_file_name}_rose_group_{nodes[0].group_idx}.{output_format}"
                 return os.path.join(ctx.output_file_path, filename)
 
             merge_strategy = RoseDiagramMergeStrategy(

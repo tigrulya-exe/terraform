@@ -19,7 +19,6 @@ def draw_subplot(
         cmap="seismic",
         norm_method="linear",
         plot_regression_line=True):
-    # histogram, luminance_bytes, xmin, xmax, ymin, ymax, intercept, slope = plot_info
 
     xmin, xmax = 0, 1
     ymin, ymax = plot_info.img_stats
@@ -37,6 +36,8 @@ def draw_subplot(
     )
     if plot_regression_line:
         ax.plot(plot_info.x_bytes, slope * plot_info.x_bytes + intercept, color='red', linewidth=0.5)
+        ax.set_xlabel('cos(i)')
+        ax.set_ylabel('radiance')
 
     # img = ax.scatter_density(x, y, cmap=cmap)
     plt.colorbar(img, ax=ax, cmap=cmap)
@@ -129,7 +130,7 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
             self.tr('The normalization method used to scale pixel values to the [0, 1] range of colormap'),
             options=[e for e in self.ScaleMethod],
             allowMultiple=False,
-            defaultValue='linear',
+            defaultValue='symlog',
             usesStaticStrings=True
         )
         self._additional_param(pixel_scale_param)
@@ -178,7 +179,7 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
 
         if per_file:
             def generate_file_name(node: CorrelationNodeInfo):
-                return f"correlation_{node.group_idx}_{node.name}.{output_format}"
+                return f"{ctx.input_file_name}_correlation_{node.group_idx}_{node.name}.{output_format}"
 
             merge_strategy = CorrelationPlotPerFileMergeStrategy(
                 output_directory,
@@ -189,7 +190,7 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
             )
         else:
             def generate_file_name(nodes: list[CorrelationNodeInfo]):
-                filename = f"plot_correlation_subplots_{nodes[0].group_idx}.{output_format}"
+                filename = f"{ctx.input_file_name}_plot_correlation_{nodes[0].group_idx}.{output_format}"
                 return os.path.join(output_directory, filename)
 
             merge_strategy = CorrelationPlotMergeStrategy(
