@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from pandas import DataFrame, Series
 from pandas.core.groupby import SeriesGroupBy
+from qgis._core import QgsProcessingParameterFolderDestination
 from qgis.core import (
     QgsProcessingParameterMatrix,
     QgsProcessingParameterEnum,
@@ -67,12 +68,14 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
             metrics: list[EvalMetric],
             corrections: list[TopoCorrectionAlgorithm],
             metrics_combine_strategy: BandMetricsCombiner.Strategy = BandMetricsCombiner.Strategy.SUM,
-            group_ids_path=None):
+            group_ids_path=None,
+            correction_results_directory=None):
         super().__init__(ctx, self, group_ids_path)
         self.metrics_dict: dict[str, EvalMetric] = {metric.id(): metric for metric in metrics}
         self.corrections = corrections
         self.correction_results = dict()
         self.metrics_combiner = BandMetricsCombiner(metrics_combine_strategy)
+        self.correction_results_directory = correction_results_directory or ctx.tmp_dir
 
     def evaluate(self):
         if self.ctx.run_parallel:
@@ -154,11 +157,13 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
         return (normalized_metrics * weights).sum(1), normalized_metrics
 
     def _normalize(self, group_result: DataFrame, orig_metrics: DataFrame) -> DataFrame:
-        good_results = group_result.where(group_result.ge(orig_metrics, level=1))
+        good_results = group_result.where(group_result.gt(orig_metrics, level=1))
         norm_good_results = self._normalize_single(good_results, metrics_min=orig_metrics)
 
         bad_results = group_result.where(group_result.lt(orig_metrics, level=1))
         norm_bad_results = self._normalize_single(bad_results, metrics_max=orig_metrics) - 1
+
+        norm_good_results[group_result.eq(orig_metrics, level=1)] = 0.0
 
         norm_good_results.fillna(norm_bad_results, inplace=True)
         return norm_good_results.drop(self.ORIGINAL_IMAGE_KEY)
@@ -168,7 +173,7 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
             metrics_min = metrics.min(level=1)
         if metrics_max is None:
             metrics_max = metrics.max(level=1)
-        return metrics.subtract(metrics_min, level=1).divide(metrics_max - metrics_min, level=1)
+        return metrics.subtract(metrics_min, level=1).divide(metrics_max - metrics_min, level=1, )
 
     def _perform_topo_corrections_parallel(self):
         correction_ctx = SerializableQgisExecutionContext.from_ctx(self.ctx)
@@ -176,7 +181,7 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
         futures = dict()
         with ProcessPoolExecutor(max_workers=self.ctx.worker_count) as executor:
             for correction in self.corrections:
-                corrected_image_path = os.path.join(self.ctx.output_file_path, f"{correction.get_name()}.tif")
+                corrected_image_path = self._build_correction_result_name(correction)
                 correction_future = executor.submit(topo_correction_entrypoint, correction_ctx, correction,
                                                     corrected_image_path)
                 self.ctx.log(f"Path for {correction.get_name()} is {corrected_image_path}")
@@ -193,8 +198,11 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
         for correction in self.corrections:
             self._perform_topo_correction(correction, correction_ctx)
 
+    def _build_correction_result_name(self, correction):
+        return os.path.join(self.correction_results_directory, f"{correction.get_name()}.tif")
+
     def _perform_topo_correction(self, correction, ctx):
-        corrected_image_path = os.path.join(self.ctx.output_file_path, f"{correction.get_name()}.tif")
+        corrected_image_path = self._build_correction_result_name(correction)
         ctx.output_file_path = corrected_image_path
         correction.process(ctx)
         self.correction_results[correction.get_name()] = corrected_image_path
@@ -244,6 +252,20 @@ class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgo
 
         params = self.parallel_run_params()
         [self._additional_param(param) for param in params]
+
+    def add_output_param(self):
+        main_out_param = super().add_output_param()
+
+        self.addParameter(
+            QgsProcessingParameterFolderDestination(
+                'CORRECTIONS_OUTPUT_DIR',
+                self.tr('Output directory for correction results'),
+                optional=True,
+                defaultValue=None
+            )
+        )
+
+        return main_out_param
 
     def _metrics_param(self):
         def _default_metrics_gen():
@@ -296,12 +318,16 @@ class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgo
             metric = self.metric_classes[metric_id](weight=float(weight[0]))
             metrics.append(metric)
 
+        correction_results_directory = self._get_output_dir(
+            ctx.qgis_params, ctx.qgis_context, param_name='CORRECTIONS_OUTPUT_DIR')
+
         algorithm = MultiCriteriaRankAlgorithm(
             ctx,
             metrics=metrics,
             corrections=[self.correction_classes[idx]() for idx in correction_ids],
             metrics_combine_strategy=BandMetricsCombiner.Strategy(metric_merge_strategy),
-            group_ids_path=group_ids_path
+            group_ids_path=group_ids_path,
+            correction_results_directory=correction_results_directory
         )
 
         return algorithm.evaluate()

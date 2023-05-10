@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import scipy.stats
 from numpy import ndarray
 from pandas import Series
 
@@ -137,20 +138,12 @@ class ThresholdOutliersCountMetric(OutliersCountMetric):
     def name():
         return "Number of outliers (static thresholds)"
 
-    def __init__(self, min_threshold=None, max_threshold=None, weight=1.0):
+    def __init__(self, weight=1.0):
         super().__init__(weight=weight)
-        self.min_threshold = min_threshold
-        self.max_threshold = max_threshold
-
-    def _init_thresholds(self, ctx: EvalContext):
-        if self.min_threshold is None or self.max_threshold is None:
-            orig_min, orig_max = ctx.orig_minmax()
-            self.min_threshold = self.min_threshold or orig_min
-            self.max_threshold = self.max_threshold or orig_max
 
     def _outliers_filter(self, values, ctx: EvalContext):
-        self._init_thresholds(ctx)
-        return np.logical_or(self.min_threshold > values, values > self.max_threshold)
+        orig_min, orig_max = ctx.orig_minmax()
+        return np.logical_or(orig_min > values, values > orig_max)
 
 
 class IqrOutliersCountMetric(OutliersCountMetric):
@@ -169,19 +162,18 @@ class IqrOutliersCountMetric(OutliersCountMetric):
         return np.logical_or(min_threshold > values, values > max_threshold)
 
 
-class RegressionSlopeMetric(EvalMetric):
+class DeterminationCoefficientMetric(EvalMetric):
     @staticmethod
     def id():
-        return "correlation_regression_slope"
+        return "determination_coefficient"
 
     @staticmethod
     def name():
-        return "Slope of the regression between band values and solar incidence angle"
+        return "Determination coefficient of the band values and solar incidence angle"
 
     def evaluate(self, values: list, ctx: EvalContext) -> float:
-        normalized_values = values - np.min(values)
-        _, slope = np.polynomial.polynomial.polyfit(ctx.luminance_bytes, normalized_values, 1)
-        return abs(slope)
+        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(ctx.luminance_bytes, values)
+        return r_value * r_value
 
 
 DEFAULT_METRICS = [
@@ -191,5 +183,5 @@ DEFAULT_METRICS = [
     RelativeMedianDifferenceRangeMetric,
     ThresholdOutliersCountMetric,
     IqrOutliersCountMetric,
-    RegressionSlopeMetric
+    DeterminationCoefficientMetric
 ]

@@ -43,15 +43,15 @@ def compute_band_means(input_path: str) -> List[float]:
     band_means = []
     for iBand in range(0, ds.RasterCount):
         band = ds.GetRasterBand(iBand + 1)
+        _, _, mean, _ = band.GetStatistics(True, True)
 
-        pixel_sum = 0
-        for i in range(band.YSize - 1, -1, -1):
-            scanline = read_hline(band, i)
-            pixel_sum += np.sum(scanline)
+        if mean is not None:
+            band_means.append(mean)
+            continue
 
-        band_means.append(pixel_sum / (band.XSize * band.YSize))
+        mean = np.mean(band.ReadAsArray().astype('float'))
+        band_means.append(mean)
 
-    ds = None
     return band_means
 
 

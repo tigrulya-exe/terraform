@@ -31,9 +31,9 @@ class PbcTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
         c = self.calculate_c(ctx, band_idx)
 
         def calculate(input_band, luminance, h):
-            denominator = luminance + c * h
+            denominator = luminance + c * h / self.h0
             return input_band * np.divide(
-                ctx.sza_cosine() + c * self.h0,
+                ctx.sza_cosine() + c / self.h0,
                 denominator,
                 out=input_band.astype('float32'),
                 where=np.logical_and(denominator > 0, input_band > 5)

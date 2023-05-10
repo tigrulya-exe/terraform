@@ -120,8 +120,8 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
             context: QgsProcessingContext) -> Dict[str, Any]:
         return dict()
 
-    def _get_output_dir(self, qgis_params, qgis_context):
-        output_directory = self.parameterAsString(qgis_params, 'OUTPUT_DIR', qgis_context)
+    def _get_output_dir(self, qgis_params, qgis_context, param_name='OUTPUT_DIR'):
+        output_directory = self.parameterAsString(qgis_params, param_name, qgis_context)
         if output_directory is None:
             return None
 

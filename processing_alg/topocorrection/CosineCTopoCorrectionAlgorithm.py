@@ -13,8 +13,7 @@ class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
 
     def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
-        # todo add validation
-        self.luminance_mean = gdal_utils.compute_band_means(ctx.luminance_path)[0]
+        self.luminance_mean = np.mean(ctx.luminance_bytes)
 
     def process_band(self, ctx: QgisExecutionContext, band_idx: int):
         def calculate(input_band, luminance):
