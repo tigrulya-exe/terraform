@@ -2,6 +2,7 @@ import os
 from enum import Enum
 
 import matplotlib.pyplot as plt
+import numpy as np
 from qgis.core import QgsProcessingParameterBoolean, \
     QgsProcessingParameterString, QgsProcessingParameterEnum
 
@@ -25,6 +26,11 @@ def draw_subplot(
     intercept, slope = plot_info.fit_stats
 
     ax.set_title(plot_info.name)
+
+    plot_info.histogram[plot_info.histogram < 1] = np.NaN
+    cm = plt.get_cmap(cmap)
+    cm.set_bad("white")
+
     img = ax.imshow(
         plot_info.histogram,
         norm=norm_from_scale(norm_method),
@@ -32,7 +38,7 @@ def draw_subplot(
         origin='lower',
         extent=[xmin, xmax, ymin, ymax],
         aspect=1 / (2 * (ymax - ymin)),
-        cmap=cmap
+        cmap=cm
     )
     if plot_regression_line:
         ax.plot(plot_info.x_bytes, slope * plot_info.x_bytes + intercept, color='red', linewidth=0.5)
@@ -40,7 +46,7 @@ def draw_subplot(
         ax.set_ylabel('radiance')
 
     # img = ax.scatter_density(x, y, cmap=cmap)
-    plt.colorbar(img, ax=ax, cmap=cmap)
+    plt.colorbar(img, ax=ax, cmap=cm)
 
 
 class CorrelationPlotMergeStrategy(SubplotMergeStrategy):
@@ -52,11 +58,13 @@ class CorrelationPlotMergeStrategy(SubplotMergeStrategy):
             subplots_in_row=4,
             path_provider=None,
             figsize=(28, 12),
-            subplot_kw=None):
+            subplot_kw=None,
+            figname=None):
         super().__init__(subplots_in_row, path_provider, figsize, subplot_kw)
         self.norm_method = norm_method
         self.cmap = cmap
         self.plot_regression_line = plot_regression_line
+        self.figname = figname
 
     def draw_subplot(self, subplot_info, ax, idx):
         draw_subplot(
@@ -66,6 +74,9 @@ class CorrelationPlotMergeStrategy(SubplotMergeStrategy):
             self.norm_method,
             self.plot_regression_line
         )
+
+    def after_plot(self, fig, axes):
+        fig.suptitle(self.figname, fontsize=16)
 
 
 class CorrelationPlotPerFileMergeStrategy(PlotPerFileMergeStrategy):
@@ -121,7 +132,7 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
         plot_colormap_param = QgsProcessingParameterString(
             'PLOT_COLORMAP',
             self.tr('Plot colormap'),
-            defaultValue='coolwarm'
+            defaultValue='BuPu'
         )
         self._additional_param(plot_colormap_param)
 
@@ -197,7 +208,8 @@ class PlotCorrelationEvaluationProcessingAlgorithm(CorrelationEvaluationProcessi
                 norm_method,
                 cmap,
                 plot_regression_line,
-                path_provider=generate_file_name
+                path_provider=generate_file_name,
+                figname=ctx.input_file_name
             )
 
         alg = CorrelationEvaluationAlgorithm(

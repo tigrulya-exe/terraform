@@ -100,11 +100,13 @@ class RoseDiagramMergeStrategy(SubplotMergeStrategy):
             aspect_max_deg=360.0,
             subplots_in_row=4,
             path_provider=None,
-            figsize=(20, 20)):
+            figsize=(20, 20),
+            figname=None):
         super().__init__(subplots_in_row, path_provider, figsize, dict(projection='polar'))
         self.slope_groups_bounds = divide_to_groups(slope_groups_count, upper_bound=slope_max_deg)
         self.aspect_groups_bounds = divide_to_groups(aspect_groups_count, upper_bound=aspect_max_deg)
         self.aspect_bounds_rad = None
+        self.figname = figname
 
     def merge(self, subplot_infos, group_idx):
         non_empty_aspect_groups = subplot_infos[0].group_means.shape[1]
@@ -113,6 +115,7 @@ class RoseDiagramMergeStrategy(SubplotMergeStrategy):
 
     def after_plot(self, fig, axes):
         handles, labels = fig.axes[-1].get_legend_handles_labels()
+        fig.suptitle(self.figname, fontsize=16)
         fig.legend(
             handles,
             labels,
@@ -326,8 +329,7 @@ class RoseDiagramEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
             self,
             parameters: Dict[str, Any],
             ctx: QgisExecutionContext,
-            feedback: QgsProcessingFeedback
-    ):
+            feedback: QgsProcessingFeedback):
         per_file = self.parameterAsBoolean(ctx.qgis_params, 'DRAW_PER_FILE', ctx.qgis_context)
         output_format = self.get_output_format_param(ctx)
 
@@ -363,7 +365,8 @@ class RoseDiagramEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorithm
                 slope_max_deg,
                 aspect_groups_count,
                 aspect_max_deg,
-                path_provider=generate_file_name
+                path_provider=generate_file_name,
+                figname=ctx.input_file_name
             )
 
         # todo move rose connected input to separate class and instantiate in once
