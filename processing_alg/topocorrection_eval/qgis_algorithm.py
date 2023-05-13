@@ -10,8 +10,7 @@ from qgis.core import (QgsProcessingContext,
 
 from ..execution_context import QgisExecutionContext
 from ..terraform_algorithm import TerraformProcessingAlgorithm
-from ...computation.qgis_utils import set_layers_to_load
-from ...util.qgis_utils import get_project_tmp_dir
+from ...util.qgis_utils import get_project_tmp_dir, set_layers_to_load
 
 
 class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
