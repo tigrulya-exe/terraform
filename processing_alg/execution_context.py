@@ -33,6 +33,7 @@ class ExecutionContext:
     _slope_path: str = None
     _aspect_path: str = None
     _luminance_path: str = None
+    pixel_ignore_threshold: int = 5
 
     @property
     def need_qgis_init(self):
@@ -91,6 +92,7 @@ class QgisExecutionContext(ExecutionContext):
             run_parallel: bool = False,
             task_timeout: int = 10000,
             worker_count: int = None,
+            pixel_ignore_threshold: int = 5,
             keep_in_memory: bool = True):
         super().__init__(
             input_layer_path=input_layer.source(),
@@ -103,6 +105,7 @@ class QgisExecutionContext(ExecutionContext):
             worker_count=worker_count,
             keep_in_memory=keep_in_memory,
             need_load=True,
+            pixel_ignore_threshold=pixel_ignore_threshold,
             tmp_dir=tmp_dir
         )
         check_compatible(input_layer, dem_layer)

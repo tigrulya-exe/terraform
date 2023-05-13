@@ -20,7 +20,7 @@ class PbmTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
                 slope_cos,
                 np.power(slope_cos * luminance, k),
                 out=input_band.astype('float32'),
-                where=np.logical_and(luminance > 0, input_band > 5)
+                where=np.logical_and(luminance > 0, input_band > ctx.pixel_ignore_threshold)
             )
 
         return self.raster_calculate(

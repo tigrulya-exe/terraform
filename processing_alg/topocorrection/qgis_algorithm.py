@@ -173,6 +173,14 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
             )
         )
 
+        ignore_threshold_param = QgsProcessingParameterNumber(
+            'PIXEL_IGNORE_THRESHOLD',
+            self.tr('Upper limit of the pixel value to ignore. All points with a lower value will not be corrected'),
+            defaultValue=5.0,
+            type=QgsProcessingParameterNumber.Double
+        )
+        self._additional_param(ignore_threshold_param)
+
         show_layers_param = QgsProcessingParameterEnum(
             'SHOW_AUXILIARY_LAYERS',
             self.tr('Auxiliary generated layers to open after running algorithm'),
@@ -202,6 +210,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
         worker_count = self.get_worker_count_param(parameters, context)
 
         output_file_path = self.parameterAsFileOutput(parameters, 'OUTPUT', context)
+        pixel_ignore_threshold = self.parameterAsDouble(parameters, 'PIXEL_IGNORE_THRESHOLD', context)
 
         class TopoCorrectionQgisExecutionContext(QgisExecutionContext):
             def __init__(inner):
@@ -217,6 +226,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
                     run_parallel=run_parallel,
                     task_timeout=task_timeout,
                     worker_count=worker_count,
+                    pixel_ignore_threshold=pixel_ignore_threshold,
                     tmp_dir=get_project_tmp_dir()
                 )
                 inner.salt = random.randint(1, 100000)

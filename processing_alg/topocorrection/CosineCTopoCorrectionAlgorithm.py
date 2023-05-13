@@ -21,7 +21,7 @@ class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 self.luminance_mean - luminance,
                 self.luminance_mean,
                 out=input_band.astype('float32'),
-                where=input_band > 5
+                where=input_band > ctx.pixel_ignore_threshold
             ))
 
         return self.raster_calculate(

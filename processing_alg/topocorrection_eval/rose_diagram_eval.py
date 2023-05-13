@@ -5,6 +5,7 @@ from typing import Any, Dict
 import numpy as np
 import numpy_groupies as npg
 from matplotlib import pyplot as plt
+from numpy import ma
 from qgis.core import QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingParameterBoolean, \
     QgsProcessingParameterRasterLayer
 
@@ -24,7 +25,7 @@ def divide_to_groups(groups_count, upper_bound, lower_bound=0):
 
 
 def get_slope_label(slope_groups_bounds, idx):
-    higher_bound = "+" if len(slope_groups_bounds) == idx + 1 else f"-{slope_groups_bounds[idx + 1]}"
+    higher_bound = "+" if len(slope_groups_bounds) <= idx + 1 else f"-{slope_groups_bounds[idx + 1]}"
     return f"{slope_groups_bounds[idx]}{higher_bound}°"
 
 
@@ -196,14 +197,16 @@ class RoseDiagramEvaluationAlgorithm(EvaluationAlgorithm):
 
         slope_groups = group_by_range(slope_bytes, slope_groups_count, upper_bound=slope_max_deg)
         aspect_groups = group_by_range(aspect_bytes, aspect_groups_count, upper_bound=aspect_max_deg)
+
+        self.take_mask = np.logical_and(slope_bytes <= slope_max_deg, aspect_bytes <= aspect_max_deg)
         self.groups_idxs = np.vstack((slope_groups, aspect_groups))
         # todo tmp
         self.include_stats = include_stats
 
     def _evaluate_band(self, band: EvaluationAlgorithm.BandInfo, group_idx) -> Any:
-        groups_idxs = self.groups_idxs[:, self.groups_map == group_idx]
+        groups_idxs = self.groups_idxs[:, np.logical_and(self.groups_map == group_idx, self.take_mask)]
 
-        group_means = npg.aggregate(groups_idxs, band.bytes, func='mean', fill_value=0)
+        group_means = npg.aggregate(groups_idxs, band.bytes[self.take_mask], func='mean', fill_value=0)
         return RoseDiagramsNodeInfo(
             group_means,
             band.gdal_band.GetDescription(),

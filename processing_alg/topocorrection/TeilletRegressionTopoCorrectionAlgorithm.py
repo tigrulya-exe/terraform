@@ -1,3 +1,5 @@
+import numpy as np
+
 from .SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
 from ...util import gdal_utils
@@ -17,7 +19,12 @@ class TeilletRegressionTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlg
         intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
 
         def calculate(input_band, luminance):
-            result = input_band - slope * luminance - intercept + self.raster_means[band_idx]
+            result = np.add(
+                input_band - slope * luminance - intercept,
+                self.raster_means[band_idx],
+                out=input_band.astype('float32'),
+                where=input_band > ctx.pixel_ignore_threshold
+            )
             result[result <= 0] = self._calculate_zero_noise()
             return result
 

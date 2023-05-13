@@ -24,7 +24,7 @@ class VecaTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
                 self.raster_means[band_idx],
                 denominator,
                 out=input_band.astype('float32'),
-                where=np.logical_and(denominator > 0, input_band > 5)
+                where=np.logical_and(denominator > 0, input_band > ctx.pixel_ignore_threshold)
             )
             result[result <= 0] = self._calculate_zero_noise()
             return result

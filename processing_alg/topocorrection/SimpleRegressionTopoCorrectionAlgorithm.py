@@ -18,8 +18,10 @@ class SimpleRegressionTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
 
         ctx.log(f'read: {(read_end - read_start) / 1000000} sec')
 
+        mask = band_bytes > ctx.pixel_ignore_threshold
+
         fit_start = time.process_time_ns()
-        intercept, slope = np.polynomial.polynomial.polyfit(luminance_bytes, band_bytes, 1)
+        intercept, slope = np.polynomial.polynomial.polyfit(luminance_bytes[mask], band_bytes[mask], 1)
         fit_end = time.process_time_ns()
 
         ctx.log(f'{(intercept, slope)}: {(fit_end - fit_start) / 1000000} sec')

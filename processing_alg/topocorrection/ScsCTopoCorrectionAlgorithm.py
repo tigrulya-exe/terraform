@@ -19,7 +19,7 @@ class ScsCTopoCorrectionAlgorithm(CTopoCorrectionAlgorithm):
                 np.cos(slope) * ctx.sza_cosine() + c,
                 denominator,
                 out=input_band.astype('float32'),
-                where=np.logical_and(denominator > 0, input_band > 5)
+                where=np.logical_and(denominator > 0, input_band > ctx.pixel_ignore_threshold)
             )
 
         return self.raster_calculate(
