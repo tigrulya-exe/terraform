@@ -17,7 +17,6 @@ __author__ = 'Tigran Manasyan'
 __copyright__ = '(C) 2023 by Tigran Manasyan'
 __license__ = "GPLv3"
 
-from qgis.PyQt.QtWidgets import QMessageBox, QAction
 from qgis.core import (
     QgsApplication
 )
@@ -40,15 +39,5 @@ class TerraformTopoCorrectionPlugin(object):
     def initGui(self):
         self.initProcessing()
 
-        self.key_action = QAction("Test Plugin", self.iface.mainWindow())
-        self.iface.registerMainWindowAction(self.key_action, "Ctrl+I")  # action triggered by Ctrl+I
-        self.iface.addPluginToMenu("&Test plugins", self.key_action)
-        self.key_action.triggered.connect(self.key_action_triggered)
-
-    def key_action_triggered(self):
-        QMessageBox.information(self.iface.mainWindow(), "Ok", "You pressed Ctrl+I")
-
     def unload(self):
         QgsApplication.processingRegistry().removeProvider(self.provider)
-
-        self.iface.unregisterMainWindowAction(self.key_action)
