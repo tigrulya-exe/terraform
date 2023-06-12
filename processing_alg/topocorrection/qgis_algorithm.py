@@ -230,8 +230,8 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
 
         # todo: change band names even without load on completion
         if context.willLoadLayerOnCompletion(corrected_img_path):
-            context.layerToLoadOnCompletionDetails(
-                corrected_img_path).setPostProcessor(TopoCorrectionPostProcessor.create(input_layer))
+            context.layerToLoadOnCompletionDetails(corrected_img_path)\
+                .setPostProcessor(TopoCorrectionPostProcessor.create(input_layer, corrected_img_path))
 
         return {"OUTPUT": corrected_img_path}
 

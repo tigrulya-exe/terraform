@@ -24,19 +24,21 @@ from qgis.core import QgsProcessingLayerPostProcessorInterface, QgsRasterLayer
 class TopoCorrectionPostProcessor(QgsProcessingLayerPostProcessorInterface):
     instance = None
 
-    def __init__(self, input_layer) -> None:
+    def __init__(self, input_layer, new_name: str) -> None:
         super().__init__()
         self.input_layer: QgsRasterLayer = input_layer
+        self.new_name = new_name
 
     # sip hack
     @staticmethod
-    def create(input_layer) -> 'TopoCorrectionPostProcessor':
-        TopoCorrectionPostProcessor.instance = TopoCorrectionPostProcessor(input_layer)
+    def create(input_layer, new_name: str) -> 'TopoCorrectionPostProcessor':
+        TopoCorrectionPostProcessor.instance = TopoCorrectionPostProcessor(input_layer, new_name)
         return TopoCorrectionPostProcessor.instance
 
     def postProcessLayer(self, layer, context, feedback):
         layer.setRenderer(self.input_layer.renderer().clone())
         self._copy_band_descriptions(self.input_layer.source(), layer.source())
+        layer.setName(self.new_name)
         layer.reload()
         layer.triggerRepaint()
 
