@@ -1,29 +1,12 @@
 import os
 import random
 import time
+import traceback
 from concurrent.futures import ProcessPoolExecutor
-from typing import Dict, Any
-
-import processing
-from qgis.core import QgsProcessingException
 
 from ..execution_context import QgisExecutionContext, SerializableQgisExecutionContext
 from ...util.gdal_utils import get_raster_type
 from ...util.raster_calc import SimpleRasterCalc, RasterInfo
-
-GDAL_MERGE_DATATYPES = [
-    'Byte',
-    'Int16',
-    'UInt16',
-    'UInt32',
-    'Int32',
-    'Float32',
-    'Float64',
-    'CInt16',
-    'CInt32',
-    'CFloat32',
-    'CFloat64'
-]
 
 
 class TopoCorrectionAlgorithm:
@@ -32,67 +15,65 @@ class TopoCorrectionAlgorithm:
         self.salt = random.randint(1, 100000)
 
     @staticmethod
-    def get_name():
+    def name():
+        pass
+
+    @staticmethod
+    def description():
         pass
 
     def init(self, ctx: QgisExecutionContext):
         pass
 
-    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
-        pass
-
-    def process(self, ctx: QgisExecutionContext) -> Dict[str, Any]:
-
+    def process(self, ctx: QgisExecutionContext) -> str:
+        ctx.log_info(f"[{self.name()}]: initializing.")
         self.init(ctx)
 
-        ctx.log(f"{self.get_name()} correction started: parallel={ctx.run_parallel}")
+        ctx.log_info(f"[{self.name()}]: starting per-band correction.")
         result_bands = self._process_parallel(ctx) if ctx.run_parallel else self._process_sequentially(ctx)
 
-        ctx.log(f"start merge results for {self.get_name()}")
+        ctx.log_info(f"[{self.name()}]: merging corrected bands.")
 
-        out_type_name = get_raster_type(ctx.input_layer_path)
-        out_type_ordinal = GDAL_MERGE_DATATYPES.index(out_type_name)
+        out_type = get_raster_type(ctx.input_layer_path)
+        out_path = ctx.merge_bands(result_bands, out_type)
 
-        processing_func = processing.runAndLoadResults if ctx.need_load else processing.run
-        results = processing_func(
-            "gdal:merge",
-            {
-                'INPUT': result_bands,
-                'PCT': False,
-                'SEPARATE': True,
-                'DATA_TYPE': out_type_ordinal,
-                'OUTPUT': ctx.output_file_path
-            },
-            feedback=ctx.qgis_feedback,
-            context=ctx.qgis_context
-        )
-        ctx.log(f"end merge results for {self.get_name()}")
+        ctx.log_info(f"[{self.name()}]: finished.")
+        return out_path
 
-        return results
+    def _process_band_with_metrics(self, ctx: QgisExecutionContext, band_idx: int) -> str:
+        start_ns = time.process_time_ns()
+        result = self._process_band(ctx, band_idx)
+        end_ns = time.process_time_ns()
+
+        ctx.log_info(f"[{self.name()}]: band {band_idx} was processed in {(end_ns - start_ns) / 1000000} ms")
+        return result
+
+    def _process_band(self, ctx: QgisExecutionContext, band_idx: int) -> str:
+        pass
 
     def _process_parallel(self, ctx: QgisExecutionContext):
         result_bands = []
-
+        result_futures = []
         serializable_ctx = SerializableQgisExecutionContext.from_ctx(ctx)
 
-        futures = []
-
-        # todo handle exceptions from executor
         with ProcessPoolExecutor(max_workers=ctx.worker_count) as executor:
             for band_idx in range(ctx.input_layer_band_count):
                 future = executor.submit(_process_band_wrapper, self, serializable_ctx, band_idx)
-                futures.append(future)
+                result_futures.append(future)
 
                 if ctx.is_canceled():
-                    [future.cancel() for future in futures]
+                    [future.cancel() for future in result_futures]
                     executor.shutdown(cancel_futures=True)
-                    return None
+                    ctx.force_cancel()
 
-                result_bands.append(self.output_file_path(ctx, str(band_idx)))
+                result_bands.append(self._output_file_path(ctx, str(band_idx)))
 
-            for band_idx, future in enumerate(futures):
-                future.result(timeout=ctx.task_timeout)
-                ctx.log(f"Task for band {band_idx + 1} finished")
+            for band_idx, future in enumerate(result_futures):
+                try:
+                    future.result(timeout=ctx.task_timeout)
+                except Exception as exc:
+                    ctx.log_error(f"Error during processing band {band_idx}: {traceback.format_exc()}", fatal=True)
+                    ctx.force_cancel(exc)
 
         return result_bands
 
@@ -101,43 +82,38 @@ class TopoCorrectionAlgorithm:
 
         for band_idx in range(ctx.input_layer_band_count):
             try:
-                result = self.process_band(ctx, band_idx)
+                result = self._process_band_with_metrics(ctx, band_idx)
                 result_bands.append(result)
-            except QgsProcessingException as exc:
-                raise RuntimeError(f"Error during performing topocorrection: {exc}")
+            except Exception as exc:
+                ctx.log_error(f"Error during processing band {band_idx}: {traceback.format_exc()}", fatal=True)
+                ctx.force_cancel(exc)
 
             if ctx.is_canceled():
-                return None
+                ctx.force_cancel()
 
         return result_bands
 
-    def output_file_path(self, ctx, postfix=''):
+    def _output_file_path(self, ctx, postfix=''):
         return os.path.join(
             ctx.tmp_dir,
-            f'{self.get_name()}_{self.salt}_{postfix}.tif'
+            f'{self.name()}_{self.salt}_{postfix}.tif'
         )
 
-    def raster_calculate(self, ctx: QgisExecutionContext, calc_func, raster_infos: list[RasterInfo],
-                         out_file_postfix='',
-                         **kwargs):
+    def _raster_calculate(self, ctx: QgisExecutionContext, calc_func, raster_infos: list[RasterInfo],
+                          out_file_postfix='',
+                          **kwargs):
         if ctx.is_canceled():
-            raise RuntimeError("Canceled")
+            ctx.force_cancel()
 
-        out_path = self.output_file_path(ctx, out_file_postfix)
-
-        calc_start = time.process_time_ns()
+        out_path = self._output_file_path(ctx, out_file_postfix)
         self.calc.calculate(
             func=calc_func,
             output_path=out_path,
             raster_infos=raster_infos,
             **kwargs
         )
-        calc_end = time.process_time_ns()
-
-        ctx.log(f"Time for band {raster_infos[0].band}: {(calc_end - calc_start) / 1000000} ms")
-
         return out_path
 
 
 def _process_band_wrapper(algorithm, _ctx, _band_idx):
-    algorithm.process_band(_ctx, _band_idx)
+    algorithm._process_band_with_metrics(_ctx, _band_idx)

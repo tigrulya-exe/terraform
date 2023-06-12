@@ -7,11 +7,15 @@ from ...util.raster_calc import RasterInfo
 
 class ScsCTopoCorrectionAlgorithm(CTopoCorrectionAlgorithm):
     @staticmethod
-    def get_name():
+    def name():
         return "SCS+C"
 
-    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
-        c = self.calculate_c(ctx, band_idx)
+    @staticmethod
+    def description():
+        return r'<a href="http://dx.doi.org/10.1109/TGRS.2005.852480">SCS+C</a>'
+
+    def _process_band(self, ctx: QgisExecutionContext, band_idx: int):
+        c = self._calculate_c(ctx, band_idx)
 
         def calculate(input_band, luminance, slope):
             denominator = luminance + c
@@ -22,7 +26,7 @@ class ScsCTopoCorrectionAlgorithm(CTopoCorrectionAlgorithm):
                 where=np.logical_and(denominator > 0, input_band > ctx.pixel_ignore_threshold)
             )
 
-        return self.raster_calculate(
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[

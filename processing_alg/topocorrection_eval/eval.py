@@ -1,12 +1,13 @@
 import os
+import traceback
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 from matplotlib import pyplot as plt
 
-from ...util import gdal_utils
 from ...processing_alg.execution_context import QgisExecutionContext
+from ...util import gdal_utils
 
 
 class MergeStrategy:
@@ -84,7 +85,6 @@ class SubplotMergeStrategy(MergeStrategy):
         if output_file_path is not None:
             plt.savefig(output_file_path, bbox_inches="tight")
 
-        # todo tmp
         return [output_file_path]
 
     def after_plot(self, fig, axes):
@@ -124,8 +124,15 @@ class EvaluationAlgorithm:
     def evaluate(self):
         result = []
 
-        for group in self.groups:
-            result += self._evaluate_group(group)
+        try:
+            for group in self.groups:
+                self.ctx.log_info(f"Start evaluating group {group}.")
+                result += self._evaluate_group(group)
+                self.ctx.log_info(f"Group {group} evaluated.")
+        except Exception as exc:
+            self.ctx.log_error(f"Error during evaluation: {traceback.format_exc()}", fatal=True)
+            self.ctx.force_cancel(exc)
+
         return result
 
     def _evaluate_group(self, group):
@@ -141,8 +148,7 @@ class EvaluationAlgorithm:
             band_results.append(band_result)
 
             if self.ctx.is_canceled():
-                # todo
-                return None
+                self.ctx.force_cancel()
         return band_results
 
     def _get_masked_band(self, ds, band_idx, group_idx) -> BandInfo:

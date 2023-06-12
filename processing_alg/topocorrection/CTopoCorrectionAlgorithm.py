@@ -1,33 +1,32 @@
 import numpy as np
 
-from .SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
+from .LuminanceRegressionTopoCorrectionAlgorithm import LuminanceRegressionTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
 from ...util.raster_calc import RasterInfo
 
 
-# from numba import njit
-
-
-# @njit
 def calculate(input, luminance, sza_cosine, c):
     denominator = luminance + c
     return input * np.divide(
         sza_cosine + c,
         denominator,
-        input.astype('float32'),
-        # where=np.logical_and(denominator > 0, input > 5)
+        input.astype('float32')
     )
 
 
-class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
+class CTopoCorrectionAlgorithm(LuminanceRegressionTopoCorrectionAlgorithm):
     @staticmethod
-    def get_name():
+    def name():
         return "C-correction"
 
-    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
-        c = self.calculate_c(ctx, band_idx)
+    @staticmethod
+    def description():
+        return r'<a href="https://www.tandfonline.com/doi/abs/10.1080/07038992.1982.10855028">C-correction</a>'
 
-        return self.raster_calculate(
+    def _process_band(self, ctx: QgisExecutionContext, band_idx: int):
+        c = self._calculate_c(ctx, band_idx)
+
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
@@ -39,6 +38,6 @@ class CTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
             c=c
         )
 
-    def calculate_c(self, ctx: QgisExecutionContext, band_idx: int) -> float:
-        intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
+    def _calculate_c(self, ctx: QgisExecutionContext, band_idx: int) -> float:
+        intercept, slope = self._get_linear_regression_coeffs(ctx, band_idx)
         return intercept / slope

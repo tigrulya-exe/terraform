@@ -3,10 +3,11 @@ import os
 import platform
 import sys
 from pathlib import Path
+from typing import Optional
 
 from processing import Processing
-from qgis._core import QgsProcessingParameterRasterDestination
-from qgis.core import QgsApplication, QgsProcessingContext, QgsProcessingUtils, QgsProject, QgsRasterLayer
+from qgis.core import (QgsApplication, QgsProcessingContext, QgsProcessingUtils, QgsProject, QgsRasterLayer,
+                       QgsProcessingParameterRasterDestination, QgsProcessingFeedback, QgsProcessingProvider)
 
 _WIN_QGIS_PATH = None
 
@@ -88,3 +89,60 @@ def matrix_list_from_table(table_dict):
         result.extend(values)
 
     return result
+
+
+class SilentFeedbackWrapper(QgsProcessingFeedback):
+    def __init__(self, delegate: QgsProcessingFeedback):
+        super().__init__()
+        self.delegate = delegate
+
+    def pushVersionInfo(self, provider: Optional['QgsProcessingProvider'] = ...):
+        pass
+
+    def pushConsoleInfo(self, info: str):
+        pass
+
+    def pushDebugInfo(self, info: str):
+        pass
+
+    def pushCommandInfo(self, info: str):
+        pass
+
+    def pushInfo(self, info: str):
+        pass
+
+    def pushWarning(self, warning: str):
+        pass
+
+    def reportError(self, error: str, fatalError: bool = True):
+        self.delegate.reportError(error, fatalError)
+
+    def setProgressText(self, text: str):
+        pass
+
+    def processedCountChanged(self, processedCount: int):
+        self.delegate.processedCountChanged(processedCount)
+
+    def progressChanged(self, progress: float):
+        self.delegate.progressChanged(progress)
+
+    def canceled(self):
+        self.delegate.canceled()
+
+    def cancel(self):
+        self.delegate.cancel()
+
+    def setProcessedCount(self, processedCount: int):
+        self.delegate.setProcessedCount(processedCount)
+
+    def processedCount(self) -> int:
+        return self.delegate.processedCount()
+
+    def progress(self) -> float:
+        return self.delegate.progress()
+
+    def setProgress(self, progress: float):
+        return self.delegate.setProgress(progress)
+
+    def isCanceled(self) -> bool:
+        return self.delegate.isCanceled()

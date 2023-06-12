@@ -79,7 +79,7 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
 
         self.add_layers_to_project(execution_ctx, result)
 
-        return {"OUT": result}
+        return {"OUTPUT": result}
 
     def add_output_param(self):
         self.addParameter(

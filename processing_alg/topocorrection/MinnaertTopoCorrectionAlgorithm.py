@@ -1,27 +1,33 @@
 import numpy as np
 
-from ...util.gdal_utils import read_band_flat
 from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
+from ...util.gdal_utils import read_band_flat
 from ...util.raster_calc import RasterInfo
 
 
 class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
+    def __init__(self):
+        super().__init__()
+        self.x_path = None
+        self.x_bytes = None
+
     @staticmethod
-    def get_name():
+    def name():
         return "Minnaert"
+
+    @staticmethod
+    def description():
+        return r'<a href="https://www.asprs.org/wp-content/uploads/pers/1980journal/sep/1980_sep_1183-1189.pdf">Minnaert correction</a>'
 
     def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
 
-        x_path = self.calculate_x(ctx)
-        if ctx.keep_in_memory:
-            self.x_bytes = read_band_flat(x_path, band_idx=1)
-        else:
-            self.x_path = x_path
+        x_path = self._calculate_x(ctx)
+        self.x_bytes = read_band_flat(x_path, band_idx=1)
 
-    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
-        k = self.calculate_k(ctx, band_idx)
+    def _process_band(self, ctx: QgisExecutionContext, band_idx: int):
+        k = self._calculate_k(ctx, band_idx)
 
         def calculate(input_band, luminance):
             quotient = np.divide(
@@ -32,7 +38,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             )
             return input_band * np.power(quotient, k)
 
-        return self.raster_calculate(
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
@@ -42,17 +48,11 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             out_file_postfix=band_idx
         )
 
-    def calculate_k(self, ctx: QgisExecutionContext, band_idx: int):
-        y_path = self.calculate_y(ctx, band_idx)
-
-        x_bytes = self.x_bytes if ctx.keep_in_memory else read_band_flat(self.x_path)
-        y_bytes = read_band_flat(y_path)
-
-        intercept, slope = np.polynomial.polynomial.polyfit(x_bytes, y_bytes, 1)
-        ctx.log(f'{(intercept, slope)}')
+    def _calculate_k(self, ctx: QgisExecutionContext, band_idx: int):
+        _, slope = self._calculate_intercept_slope(ctx, band_idx)
         return slope
 
-    def calculate_x(self, ctx: QgisExecutionContext) -> str:
+    def _calculate_x(self, ctx: QgisExecutionContext) -> str:
         def calculate(luminance, slope):
             return np.log(
                 np.cos(slope) * luminance,
@@ -60,7 +60,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 where=(luminance > 0)
             )
 
-        return self.raster_calculate(
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
@@ -70,7 +70,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             out_file_postfix="minnaert_x"
         )
 
-    def calculate_y(self, ctx: QgisExecutionContext, band_idx: int) -> str:
+    def _calculate_y(self, ctx: QgisExecutionContext, band_idx: int) -> str:
         def calculate(input_raster, slope):
             return np.log(
                 np.cos(slope) * input_raster,
@@ -78,7 +78,7 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 where=(input_raster > 0)
             )
 
-        return self.raster_calculate(
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
@@ -87,3 +87,10 @@ class MinnaertTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
             ],
             out_file_postfix=f"minnaert_y_{band_idx}"
         )
+
+    def _calculate_intercept_slope(self, ctx: QgisExecutionContext, band_idx: int) -> (float, float):
+        y_path = self._calculate_y(ctx, band_idx)
+        y_bytes = read_band_flat(y_path)
+
+        intercept, slope = np.polynomial.polynomial.polyfit(self.x_bytes, y_bytes, 1)
+        return intercept, slope

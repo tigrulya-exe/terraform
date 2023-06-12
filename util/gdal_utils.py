@@ -7,6 +7,20 @@ from osgeo.gdalconst import GA_ReadOnly
 
 gdal.UseExceptions()
 
+GDAL_DATATYPES = [
+    'Byte',
+    'Int16',
+    'UInt16',
+    'UInt32',
+    'Int32',
+    'Float32',
+    'Float64',
+    'CInt16',
+    'CInt32',
+    'CFloat32',
+    'CFloat64'
+]
+
 
 def open_img(path, access=GA_ReadOnly):
     ds = gdal.Open(path, access)
@@ -71,19 +85,5 @@ def get_raster_type(path: str):
     return gdal.GetDataTypeName(band.DataType)
 
 
-def copy_band_descriptions(source_path, destination_path):
-    source_ds = gdal.Open(source_path, gdal.GA_ReadOnly)
-    destination_ds = gdal.Open(destination_path, gdal.GA_Update)
-
-    if source_ds.RasterCount != destination_ds.RasterCount:
-        raise ValueError(
-            f"{source_path} and {destination_path} should have equal number of bands for metadata transfer"
-        )
-
-    for band_idx in range(1, source_ds.RasterCount + 1):
-        band_description = source_ds.GetRasterBand(band_idx).GetDescription()
-        destination_ds.GetRasterBand(band_idx).SetDescription(band_description)
-
-    # de-reference the datasets, which triggers gdal to save
-    source_ds = None
-    destination_ds = None
+def get_raster_type_ordinal(raster_type: str):
+    return GDAL_DATATYPES.index(raster_type)

@@ -11,8 +11,8 @@ import numpy as np
 import processing
 from qgis.core import QgsProcessingContext, QgsProcessingFeedback, QgsRasterLayer
 
-from ..util.gdal_utils import read_band_as_array
-from ..util.qgis_utils import check_compatible, set_multiprocessing_metadata, qgis_path
+from ..util.gdal_utils import read_band_as_array, get_raster_type_ordinal
+from ..util.qgis_utils import check_compatible, set_multiprocessing_metadata, qgis_path, SilentFeedbackWrapper
 from ..util.raster_calc import SimpleRasterCalc, RasterInfo
 
 
@@ -72,11 +72,22 @@ class ExecutionContext:
     def is_canceled(self):
         return False
 
-    def log(self, message: str):
+    def log_debug(self, message: str):
+        pass
+
+    def log_info(self, message: str):
+        pass
+
+    def log_warn(self, message: str):
+        pass
+
+    def log_error(self, message: str, fatal=False):
+        pass
+
+    def merge_bands(self, band_paths: list[str], gdal_out_type: str, out_path: str = None):
         pass
 
 
-# todo use simple raster calc in methods instead of qgis raster calc
 class QgisExecutionContext(ExecutionContext):
     def __init__(
             self,
@@ -92,7 +103,7 @@ class QgisExecutionContext(ExecutionContext):
             run_parallel: bool = False,
             task_timeout: int = 10000,
             worker_count: int = None,
-            pixel_ignore_threshold: int = 5,
+            pixel_ignore_threshold: float = 5,
             keep_in_memory: bool = True):
         super().__init__(
             input_layer_path=input_layer.source(),
@@ -112,14 +123,27 @@ class QgisExecutionContext(ExecutionContext):
         self.dem_layer = dem_layer
         self.qgis_context = qgis_context
         self.qgis_feedback = qgis_feedback
+        self.silent_feedback = SilentFeedbackWrapper(qgis_feedback)
         self.qgis_params = qgis_params
         self.calc = SimpleRasterCalc()
 
     def is_canceled(self):
         return self.qgis_feedback.isCanceled()
 
-    def log(self, message: str):
+    def log_debug(self, message: str):
+        return self.qgis_feedback.pushDebugInfo(message)
+
+    def log_info(self, message: str):
         return self.qgis_feedback.pushInfo(message)
+
+    def log_warn(self, message: str):
+        return self.qgis_feedback.pushWarning(message)
+
+    def log_error(self, message: str, fatal=False):
+        return self.qgis_feedback.reportError(message, fatal)
+
+    def force_cancel(self, error: Exception = None):
+        raise error or RuntimeError("Canceled")
 
     @property
     def slope_path(self):
@@ -148,6 +172,7 @@ class QgisExecutionContext(ExecutionContext):
         return super().luminance_bytes
 
     def calculate_slope(self, in_radians=True) -> str:
+        self.log_info("[QGIS processing]: calculating slope.")
         results = processing.run(
             "gdal:slope",
             {
@@ -160,7 +185,7 @@ class QgisExecutionContext(ExecutionContext):
                 'ZEVENBERGEN': True,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             },
-            feedback=self.qgis_feedback,
+            feedback=self.silent_feedback,
             context=self.qgis_context,
             is_child_algorithm=True
         )
@@ -177,12 +202,13 @@ class QgisExecutionContext(ExecutionContext):
                 'FORMULA': f'deg2rad(A)',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
-            feedback=self.qgis_feedback,
+            feedback=self.silent_feedback,
             context=self.qgis_context
         )
         return slope_cos_result['OUTPUT']
 
     def calculate_aspect(self, in_radians=True) -> str:
+        self.log_info("[QGIS processing]: calculating aspect.")
         results = processing.run(
             "gdal:aspect",
             {
@@ -194,7 +220,7 @@ class QgisExecutionContext(ExecutionContext):
                 'ZEVENBERGEN': True,
                 'OUTPUT': 'TEMPORARY_OUTPUT'
             },
-            feedback=self.qgis_feedback,
+            feedback=self.silent_feedback,
             context=self.qgis_context,
             is_child_algorithm=True
         )
@@ -211,12 +237,14 @@ class QgisExecutionContext(ExecutionContext):
                 'FORMULA': f'deg2rad(A)',
                 'OUTPUT': 'TEMPORARY_OUTPUT',
             },
-            feedback=self.qgis_feedback,
+            feedback=self.silent_feedback,
             context=self.qgis_context
         )
         return slope_cos_result['OUTPUT']
 
     def calculate_luminance(self, slope_path=None, aspect_path=None) -> str:
+        self.log_info("[QGIS processing]: calculating luminance.")
+
         if self.sza_degrees is None or self.solar_azimuth_degrees is None:
             raise RuntimeError(f"SZA and azimuth angles not initializes")
 
@@ -234,8 +262,8 @@ class QgisExecutionContext(ExecutionContext):
         def calc_function(slope, aspect):
             return np.fmax(
                 0.0,
-                cos(sza_radians)*np.cos(slope) +
-                sin(sza_radians)*np.sin(slope)*np.cos(aspect - solar_azimuth_radians))
+                cos(sza_radians) * np.cos(slope) +
+                sin(sza_radians) * np.sin(slope) * np.cos(aspect - solar_azimuth_radians))
 
         self.calc.calculate(
             calc_function,
@@ -245,6 +273,25 @@ class QgisExecutionContext(ExecutionContext):
         )
 
         return result_path
+
+    def merge_bands(self, band_paths: list[str], gdal_out_type: str, out_path: str = None):
+        self.log_info("[QGIS processing]: merging bands.")
+
+        out_type_ordinal = get_raster_type_ordinal(gdal_out_type)
+        processing_func = processing.runAndLoadResults if self.need_load else processing.run
+        merge_results = processing_func(
+            "gdal:merge",
+            {
+                'INPUT': band_paths,
+                'PCT': False,
+                'SEPARATE': True,
+                'DATA_TYPE': out_type_ordinal,
+                'OUTPUT': out_path or self.output_file_path
+            },
+            feedback=self.silent_feedback,
+            context=self.qgis_context
+        )
+        return merge_results['OUTPUT']
 
 
 @dataclass
@@ -283,7 +330,7 @@ class SerializableQgisExecutionContext(ExecutionContext):
 
             def pushInfo(inner, info: str) -> None:
                 super().pushInfo(info)
-                self.log(info)
+                self.log_info(info)
 
         return None
 
@@ -291,9 +338,28 @@ class SerializableQgisExecutionContext(ExecutionContext):
     def qgis_params(self):
         return dict()
 
-    def log(self, message: str):
+    def log_info(self, message: str):
         # TODO
         # logging.basicConfig(level=logging.INFO,
         #                     filename=fr"D:\PyCharmProjects\QgisPlugin\log\log-{os.path.basename(self.output_file_path)}.log",
         #                     filemode="w")
         logging.info(message)
+
+    def merge_bands(self, band_paths: list[str], gdal_out_type: str, out_path: str = None):
+        self.log_info("[QGIS processing]: merging bands.")
+
+        out_type_ordinal = get_raster_type_ordinal(gdal_out_type)
+        processing_func = processing.runAndLoadResults if self.need_load else processing.run
+        merge_results = processing_func(
+            "gdal:merge",
+            {
+                'INPUT': band_paths,
+                'PCT': False,
+                'SEPARATE': True,
+                'DATA_TYPE': out_type_ordinal,
+                'OUTPUT': out_path or self.output_file_path
+            },
+            feedback=self.qgis_feedback,
+            context=self.qgis_context
+        )
+        return merge_results['OUTPUT']

@@ -1,4 +1,5 @@
 import os
+import traceback
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from copy import copy
@@ -78,16 +79,15 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
         self.correction_results_directory = correction_results_directory or ctx.tmp_dir
 
     def evaluate(self):
-        if self.ctx.run_parallel:
-            self._perform_topo_corrections_parallel()
-        else:
-            self._perform_topo_corrections()
+        self._perform_topo_corrections()
         return super().evaluate()
 
     def _evaluate_group(self, group_idx):
         group_df = self._compute_metrics_df(group_idx)
 
+        self.ctx.log_info(f"Normalizing metrics.")
         metrics_per_correction_band_df, normalized_metrics = self.merge_strategy.merge(group_df.copy(), group_idx)
+        self.ctx.log_info(f"Combining metrics.")
         scores_per_correction = self.metrics_combiner.combine(metrics_per_correction_band_df)
 
         scores_per_correction_df = scores_per_correction.to_frame(name='Score')
@@ -108,6 +108,7 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
         luminance_bytes = self._get_masked_bytes(self.ctx.luminance_bytes.ravel(), group_idx)
 
+        self.ctx.log_info("Computing metrics for original image.")
         orig_stats: list[dict[str, Any]] = []
         for band_idx in range(self.input_ds.RasterCount):
             orig_band = self._get_masked_band(self.input_ds, band_idx, group_idx)
@@ -119,6 +120,7 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
             corrected_metrics_dict[self.ORIGINAL_IMAGE_KEY].append(orig_metrics)
 
         for correction_id, corrected_ds in corrected_ds_dict.items():
+            self.ctx.log_info(f"Computing metrics for {correction_id}.")
             for band_idx in range(corrected_ds.RasterCount):
                 corrected_band = self._get_masked_band(corrected_ds, band_idx, group_idx)
                 band_result = self._evaluate_metrics(
@@ -175,6 +177,17 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
             metrics_max = metrics.max(level=1)
         return metrics.subtract(metrics_min, level=1).divide(metrics_max - metrics_min, level=1, )
 
+    def _perform_topo_corrections(self):
+        self.ctx.log_info("Starting topographic correction.")
+        try:
+            if self.ctx.run_parallel:
+                self._perform_topo_corrections_parallel()
+            else:
+                self._perform_topo_corrections_sequential()
+        except Exception as exc:
+            self.ctx.log_error(f"Error during correction: {traceback.format_exc()}", fatal=True)
+            self.ctx.force_cancel(exc)
+
     def _perform_topo_corrections_parallel(self):
         correction_ctx = SerializableQgisExecutionContext.from_ctx(self.ctx)
 
@@ -184,14 +197,13 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
                 corrected_image_path = self._build_correction_result_name(correction)
                 correction_future = executor.submit(topo_correction_entrypoint, correction_ctx, correction,
                                                     corrected_image_path)
-                self.ctx.log(f"Path for {correction.get_name()} is {corrected_image_path}")
-                futures[correction.get_name()] = correction_future
+                futures[correction.name()] = correction_future
 
             for correction_name, future in futures.items():
                 self.correction_results[correction_name] = future.result()
-                self.ctx.log(f"get res for {correction_name}")
+                self.ctx.log_info(f"{correction_name} finished.")
 
-    def _perform_topo_corrections(self):
+    def _perform_topo_corrections_sequential(self):
         correction_ctx = copy(self.ctx)
         correction_ctx.need_load = False
 
@@ -199,13 +211,13 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
             self._perform_topo_correction(correction, correction_ctx)
 
     def _build_correction_result_name(self, correction):
-        return os.path.join(self.correction_results_directory, f"{correction.get_name()}.tif")
+        return os.path.join(self.correction_results_directory, f"{correction.name()}.tif")
 
     def _perform_topo_correction(self, correction, ctx):
         corrected_image_path = self._build_correction_result_name(correction)
         ctx.output_file_path = corrected_image_path
         correction.process(ctx)
-        self.correction_results[correction.get_name()] = corrected_image_path
+        self.correction_results[correction.name()] = corrected_image_path
 
 
 def topo_correction_entrypoint(ctx, correction, corrected_image_path):
@@ -234,7 +246,7 @@ class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgo
             QgsProcessingParameterEnum(
                 'TOPO_CORRECTION_ALGORITHMS',
                 self.tr('Topographic correction algorithms to evaluate'),
-                options=[c.get_name() for c in self.correction_classes],
+                options=[c.name() for c in self.correction_classes],
                 allowMultiple=True,
                 defaultValue=[idx for idx, _ in enumerate(self.correction_classes)]
             )
@@ -346,7 +358,7 @@ class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgo
         }
 
     def _log_result(self, ctx: QgisExecutionContext, group_result: GroupResult):
-        ctx.log(f"------------------ Results for group-{group_result.group_idx}:")
+        ctx.log_info(f"------------------ Results for group-{group_result.group_idx}:")
         formatted_table = tabulate(group_result.data_frames['Scores'].df, headers='keys',
                                    tablefmt='simple_outline')
-        ctx.log(formatted_table)
+        ctx.log_info(formatted_table)

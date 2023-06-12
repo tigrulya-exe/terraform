@@ -7,11 +7,15 @@ from ...util.raster_calc import RasterInfo
 
 class PbmTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
     @staticmethod
-    def get_name():
+    def name():
         return "Pixel based Minnaert"
 
-    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
-        k = self.calculate_k(ctx, band_idx)
+    @staticmethod
+    def description():
+        return '<a href="https://www.researchgate.net/publication/235244169_Pixel-based_Minnaert_Correction_Method_for_Reducing_Topographic_Effects_on_a_Landsat_7_ETM_Image">Pixel-based Minnaert</a>'
+
+    def _process_band(self, ctx: QgisExecutionContext, band_idx: int):
+        k = self._calculate_k(ctx, band_idx)
 
         def calculate(input_band, luminance, slope):
             slope_cos = np.cos(slope)
@@ -23,7 +27,7 @@ class PbmTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
                 where=np.logical_and(luminance > 0, input_band > ctx.pixel_ignore_threshold)
             )
 
-        return self.raster_calculate(
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[

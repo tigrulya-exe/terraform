@@ -67,7 +67,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
         algorithms = DEFAULT_CORRECTIONS
         algorithms_dict = dict()
         for algorithm in algorithms:
-            algorithms_dict[algorithm.get_name()] = algorithm()
+            algorithms_dict[algorithm.name()] = algorithm()
         return algorithms_dict
 
     def tr(self, string):
@@ -102,19 +102,8 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
                        'The latter then is used in chosen topographic correction algorithm.\n'
                        r'<b>Note:</b> currently, the input raster image and the DEM must have the same CRS, '
                        'extent and spatial resolution.\n'
-                       """Implemented algorithms: 
-                       <a href="https://www.tandfonline.com/doi/abs/10.1080/07038992.1982.10855028">Cosine-T</a>
-                       <a href="https://www.asprs.org/wp-content/uploads/pers/1989journal/sep/1989_sep_1303-1309.pdf">Cosine-C</a>
-                       <a href="https://www.tandfonline.com/doi/abs/10.1080/07038992.1982.10855028">C-correction</a>
-                       <a href="http://dx.doi.org/10.1016/S0034-4257(97)00177-6">SCS</a>
-                       <a href="http://dx.doi.org/10.1109/TGRS.2005.852480">SCS+C</a>
-                       <a href="https://www.asprs.org/wp-content/uploads/pers/1980journal/sep/1980_sep_1183-1189.pdf">Minnaert</a>
-                       <a href="https://ui.adsabs.harvard.edu/abs/2002PhDT........92R/abstract">Minnaert-SCS</a>
-                       <a href="https://www.researchgate.net/publication/235244169_Pixel-based_Minnaert_Correction_Method_for_Reducing_Topographic_Effects_on_a_Landsat_7_ETM_Image">Pixel-based Minnaert</a> 
-                       <a href="https://www.tandfonline.com/doi/full/10.1080/01431160701881889">Pixel-based C correction</a>
-                       <a href="https://ieeexplore.ieee.org/abstract/document/4423917/">VECA</a>
-                       <a href="https://www.tandfonline.com/doi/abs/10.1080/07038992.1982.10855028">Teillet regression</a>
-                       """)
+                       "Implemented algorithms:\n"
+                       + '\n'.join([algorithm.description() for algorithm in self.algorithms.values()]))
 
     def initAlgorithm(self, config=None):
         """
@@ -142,7 +131,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
                 self.tr('Topographic correction algorithm'),
                 options=self.algorithms.keys(),
                 allowMultiple=False,
-                defaultValue=CTopoCorrectionAlgorithm.get_name(),
+                defaultValue=CTopoCorrectionAlgorithm.name(),
                 usesStaticStrings=True
             )
         )
@@ -151,7 +140,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
             QgsProcessingParameterNumber(
                 'SZA',
                 self.tr('Solar zenith angle (in degrees)'),
-                defaultValue=57.2478878065826,
+                defaultValue=0.0,
                 type=QgsProcessingParameterNumber.Double
             )
         )
@@ -160,7 +149,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
             QgsProcessingParameterNumber(
                 'SOLAR_AZIMUTH',
                 self.tr('Solar azimuth (in degrees)'),
-                defaultValue=177.744663052425,
+                defaultValue=0.0,
                 type=QgsProcessingParameterNumber.Double
             )
         )
@@ -250,17 +239,14 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
         ctx = TopoCorrectionQgisExecutionContext()
         correction_name = self.parameterAsEnumString(parameters, 'TOPO_CORRECTION_ALGORITHM', context)
 
-        # add validation
-        results = self.algorithms[correction_name].process(ctx)
-
-        # add_layer_to_load(context, results['OUTPUT'], "Merged result")
+        corrected_img_path = self.algorithms[correction_name].process(ctx)
 
         # todo: change band names even without load on completion
-        if context.willLoadLayerOnCompletion(results['OUTPUT']):
+        if context.willLoadLayerOnCompletion(corrected_img_path):
             context.layerToLoadOnCompletionDetails(
-                results['OUTPUT']).setPostProcessor(TopoCorrectionPostProcessor.create(input_layer))
+                corrected_img_path).setPostProcessor(TopoCorrectionPostProcessor.create(input_layer))
 
-        return results
+        return {"OUTPUT": corrected_img_path}
 
     def _add_layer_to_project(self, context, layer_path, show_label: AuxiliaryLayers, name="out"):
         if show_label.value in self.show_tmp_layers:

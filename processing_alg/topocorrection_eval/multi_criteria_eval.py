@@ -83,7 +83,7 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             QgsProcessingParameterNumber(
                 'SZA',
                 self.tr('Solar zenith angle (in degrees)'),
-                defaultValue=57.2478878065826,
+                defaultValue=0.0,
                 type=QgsProcessingParameterNumber.Double
             )
         )
@@ -92,7 +92,7 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
             QgsProcessingParameterNumber(
                 'SOLAR_AZIMUTH',
                 self.tr('Solar azimuth (in degrees)'),
-                defaultValue=177.744663052425,
+                defaultValue=0.0,
                 type=QgsProcessingParameterNumber.Double
             )
         )

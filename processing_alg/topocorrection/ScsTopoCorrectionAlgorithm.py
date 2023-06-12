@@ -7,10 +7,14 @@ from ...util.raster_calc import RasterInfo
 
 class ScsTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
     @staticmethod
-    def get_name():
+    def name():
         return "SCS"
 
-    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
+    @staticmethod
+    def description():
+        return r'<a href="http://dx.doi.org/10.1016/S0034-4257(97)00177-6">SCS</a>'
+
+    def _process_band(self, ctx: QgisExecutionContext, band_idx: int):
         def calculate(input_band, luminance, slope):
             return input_band * np.divide(
                 np.cos(slope) * ctx.sza_cosine(),
@@ -19,7 +23,7 @@ class ScsTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 where=np.logical_and(luminance > 0, input_band > ctx.pixel_ignore_threshold)
             )
 
-        return self.raster_calculate(
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[

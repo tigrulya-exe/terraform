@@ -1,22 +1,26 @@
 import numpy as np
 
-from .SimpleRegressionTopoCorrectionAlgorithm import SimpleRegressionTopoCorrectionAlgorithm
+from .LuminanceRegressionTopoCorrectionAlgorithm import LuminanceRegressionTopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
 from ...util import gdal_utils
 from ...util.raster_calc import RasterInfo
 
 
-class VecaTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
+class VecaTopoCorrectionAlgorithm(LuminanceRegressionTopoCorrectionAlgorithm):
     @staticmethod
-    def get_name():
+    def name():
         return "VECA"
+
+    @staticmethod
+    def description():
+        return r'<a href="https://ieeexplore.ieee.org/abstract/document/4423917/">VECA</a>'
 
     def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
         self.raster_means = gdal_utils.compute_band_means(ctx.input_layer_path)
 
-    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
-        intercept, slope = self.get_linear_regression_coeffs(ctx, band_idx)
+    def _process_band(self, ctx: QgisExecutionContext, band_idx: int):
+        intercept, slope = self._get_linear_regression_coeffs(ctx, band_idx)
 
         def calculate(input_band, luminance):
             denominator = slope * luminance + intercept
@@ -29,7 +33,7 @@ class VecaTopoCorrectionAlgorithm(SimpleRegressionTopoCorrectionAlgorithm):
             result[result <= 0] = self._calculate_zero_noise()
             return result
 
-        return self.raster_calculate(
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[

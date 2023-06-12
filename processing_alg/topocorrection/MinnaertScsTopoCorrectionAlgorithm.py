@@ -7,11 +7,15 @@ from ...util.raster_calc import RasterInfo
 
 class MinnaertScsTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
     @staticmethod
-    def get_name():
+    def name():
         return "Minnaert-SCS"
 
-    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
-        k = self.calculate_k(ctx, band_idx)
+    @staticmethod
+    def description():
+        return r'<a href="https://ui.adsabs.harvard.edu/abs/2002PhDT........92R/abstract">Minnaert-SCS</a>'
+
+    def _process_band(self, ctx: QgisExecutionContext, band_idx: int):
+        k = self._calculate_k(ctx, band_idx)
 
         def calculate(input_band, luminance, slope):
             quotient = np.divide(
@@ -22,7 +26,7 @@ class MinnaertScsTopoCorrectionAlgorithm(MinnaertTopoCorrectionAlgorithm):
             )
             return input_band * np.cos(slope) * np.power(quotient, k)
 
-        return self.raster_calculate(
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[

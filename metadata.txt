@@ -1,19 +1,16 @@
-# This file contains metadata for your plugin.
-
-# This file should be included when you package your plugin.# Mandatory items:
 
 [general]
-name=Terraform topographic correction
+name=Terraform
 qgisMinimumVersion=3.0
-description=Topographically correct provided input layer.
-version=0.1
+description=Implementation of popular topographic correction algorithms and various methods of their evaluation.
+version=0.4
 author=Tigran Manasyan, Nikolay Dobretsov
 email=t.manasyan@g.nsu.ru
 
-about=Topographically correct provided input layer.
+about=This plugin contains implementation of 11 popular topographic correction algorithms: Cosine-T, Cosine-C, C-correction, SCS, SCS+C, Minnaert correction, Minnaert-SCS, Pixel-based Minnaert, VECA, Teillet regression and Pixel-based C correction. Besides it the plugin provides an ability to evaluate the results of the correction algorithms by several methods: correlation between luminance and image digital numbers, rose-diagrams analysis and multi-criteria statistical analysis. Also, the plugin is capable of ranking topographic correction algorithms according to their applicability to a particular image using multi-criteria score based on the statistical metrics. Terraform plugin has processing provider, so you can easily combine the algorithm described above with other processing algorithms.
 
-tracker=https://github.com/tigrulya-exe/TopographicCorrection/issues
-repository=https://github.com/tigrulya-exe/TopographicCorrection
+tracker=https://github.com/tigrulya-exe/terraform/issues
+repository=https://github.com/tigrulya-exe/terraform
 # End of mandatory metadata
 
 # Recommended items:
@@ -23,9 +20,9 @@ hasProcessingProvider=yes
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=topography
+tags=topography, topographic correction, topographic correction evaluation
 
-homepage=https://github.com/tigrulya-exe/TopographicCorrection
+homepage=https://github.com/tigrulya-exe/terraform
 category=Analysis
 icon=icon.png
 # experimental flag

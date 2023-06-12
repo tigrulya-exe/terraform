@@ -2,20 +2,27 @@ import numpy as np
 
 from .TopoCorrectionAlgorithm import TopoCorrectionAlgorithm
 from ..execution_context import QgisExecutionContext
-from ...util import gdal_utils
 from ...util.raster_calc import RasterInfo
 
 
 class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
+    def __init__(self):
+        super().__init__()
+        self.luminance_mean = None
+
     @staticmethod
-    def get_name():
+    def name():
         return "COSINE-C"
+
+    @staticmethod
+    def description():
+        return '<a href="https://www.asprs.org/wp-content/uploads/pers/1989journal/sep/1989_sep_1303-1309.pdf">Cosine-C</a>'
 
     def init(self, ctx: QgisExecutionContext):
         super().init(ctx)
         self.luminance_mean = np.mean(ctx.luminance_bytes)
 
-    def process_band(self, ctx: QgisExecutionContext, band_idx: int):
+    def _process_band(self, ctx: QgisExecutionContext, band_idx: int):
         def calculate(input_band, luminance):
             return input_band * (1 + np.divide(
                 self.luminance_mean - luminance,
@@ -24,7 +31,7 @@ class CosineCTopoCorrectionAlgorithm(TopoCorrectionAlgorithm):
                 where=input_band > ctx.pixel_ignore_threshold
             ))
 
-        return self.raster_calculate(
+        return self._raster_calculate(
             ctx=ctx,
             calc_func=calculate,
             raster_infos=[
