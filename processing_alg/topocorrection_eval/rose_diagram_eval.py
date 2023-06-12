@@ -1,3 +1,22 @@
+#!/usr/bin/env python
+""" Terraform QGIS plugin.
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <http://www.gnu.org/licenses/>.
+"""
+
+__author__ = 'Tigran Manasyan'
+__copyright__ = '(C) 2023 by Tigran Manasyan'
+__license__ = "GPLv3"
+
 import math
 import os
 from typing import Any, Dict
@@ -5,7 +24,6 @@ from typing import Any, Dict
 import numpy as np
 import numpy_groupies as npg
 from matplotlib import pyplot as plt
-from numpy import ma
 from qgis.core import QgsProcessingFeedback, QgsProcessingParameterNumber, QgsProcessingParameterBoolean, \
     QgsProcessingParameterRasterLayer
 
@@ -35,9 +53,9 @@ def compute_statistics(array) -> dict[str, float]:
         f'percentile_{percentiles[idx]}': value for idx, value in enumerate(np.percentile(array, percentiles))
     }
     return {
-               'mean': np.mean(array),
-               'stddev': np.std(array),
-           } | percentiles_values
+        'mean': np.mean(array),
+        'stddev': np.std(array),
+    } | percentiles_values
 
 
 class RoseDiagramsNodeInfo:
