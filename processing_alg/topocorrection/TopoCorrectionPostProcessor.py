@@ -11,7 +11,7 @@ class TopoCorrectionPostProcessor(QgsProcessingLayerPostProcessorInterface):
         self.input_layer: QgsRasterLayer = input_layer
 
     def postProcessLayer(self, layer, context, feedback):
-        layer.setRenderer(self.input_layer.renderer())
+        layer.setRenderer(self.input_layer.renderer().clone())
         copy_band_descriptions(self.input_layer.source(), layer.source())
         layer.reload()
         layer.triggerRepaint()
