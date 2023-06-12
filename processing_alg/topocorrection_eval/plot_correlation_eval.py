@@ -45,8 +45,7 @@ def draw_subplot(
         ax.set_xlabel('cos(i)')
         ax.set_ylabel('radiance')
 
-    # img = ax.scatter_density(x, y, cmap=cmap)
-    plt.colorbar(img, ax=ax, cmap=cm)
+    plt.colorbar(img, ax=ax, cmap=cm, fraction=0.02874, pad=0.04)
 
 
 class CorrelationPlotMergeStrategy(SubplotMergeStrategy):
