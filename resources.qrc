@@ -1,0 +1,7 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="plugins/terraform/">
+        <file>icon.png</file>
+        <file>icon.svg</file>
+    </qresource>
+</RCC>

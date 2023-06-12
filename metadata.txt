@@ -20,7 +20,7 @@ hasProcessingProvider=yes
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=topography, topographic correction, topographic correction evaluation
+tags=topography, topographic correction, topographic correction evaluation, processing
 
 homepage=https://github.com/tigrulya-exe/terraform
 category=Analysis

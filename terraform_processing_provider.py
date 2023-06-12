@@ -17,6 +17,7 @@ __author__ = 'Tigran Manasyan'
 __copyright__ = '(C) 2023 by Tigran Manasyan'
 __license__ = "GPLv3"
 
+from PyQt5.QtGui import QIcon
 from qgis.core import QgsProcessingProvider
 
 from .processing_alg.topocorrection.qgis_algorithm import TerraformTopoCorrectionAlgorithm
@@ -75,7 +76,7 @@ class TerraformProcessingProvider(QgsProcessingProvider):
         Should return a QIcon which is used for your provider inside
         the Processing toolbox.
         """
-        return QgsProcessingProvider.icon(self)
+        return QIcon(":/plugins/terraform/icon.svg")
 
     def longName(self):
         """
