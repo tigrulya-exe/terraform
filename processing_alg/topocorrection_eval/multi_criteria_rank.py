@@ -191,9 +191,9 @@ class MultiCriteriaRankAlgorithm(EvaluationAlgorithm, MergeStrategy):
 
     def _normalize_single(self, metrics: DataFrame, metrics_min=None, metrics_max=None):
         if metrics_min is None:
-            metrics_min = metrics.min(level=1)
+            metrics_min = metrics.groupby(level=1).min()
         if metrics_max is None:
-            metrics_max = metrics.max(level=1)
+            metrics_max = metrics.groupby(level=1).max()
         return metrics.subtract(metrics_min, level=1).divide(metrics_max - metrics_min, level=1, )
 
     def _perform_topo_corrections(self):
@@ -352,6 +352,9 @@ class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgo
         correction_results_directory = self._get_output_dir(
             ctx.qgis_params, ctx.qgis_context, param_name='CORRECTIONS_OUTPUT_DIR')
 
+        if correction_results_directory is None:
+            raise ValueError("Output directory should not be null")
+
         algorithm = MultiCriteriaRankAlgorithm(
             ctx,
             metrics=metrics,
@@ -381,3 +384,4 @@ class MultiCriteriaRankProcessingAlgorithm(MultiCriteriaEvaluationProcessingAlgo
         formatted_table = tabulate(group_result.data_frames['Scores'].df, headers='keys',
                                    tablefmt='simple_outline')
         ctx.log_info(formatted_table)
+        ctx.log_info(f"You can find results in the following directory: {ctx.output_file_path}")

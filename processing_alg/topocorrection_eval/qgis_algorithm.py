@@ -140,7 +140,7 @@ class TopocorrectionEvaluationAlgorithm(TerraformProcessingAlgorithm):
 
     def _get_output_dir(self, qgis_params, qgis_context, param_name='OUTPUT_DIR'):
         output_directory = self.parameterAsString(qgis_params, param_name, qgis_context)
-        if output_directory is None:
+        if output_directory == "" or output_directory is None:
             return None
 
         if not os.path.exists(output_directory):

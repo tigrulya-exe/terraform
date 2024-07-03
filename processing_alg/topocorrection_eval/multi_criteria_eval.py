@@ -175,6 +175,10 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         scores_per_group = self._get_scores_per_groups(ctx, group_ids_path)
 
         output_dir = self._get_output_dir(qgis_params=parameters, qgis_context=ctx.qgis_context)
+
+        if output_dir is None:
+            raise ValueError("Output directory should not be null")
+
         output_files = self._export_results(ctx, scores_per_group, output_dir)
         return output_files
 
@@ -230,7 +234,7 @@ class MultiCriteriaEvaluationProcessingAlgorithm(TopocorrectionEvaluationAlgorit
         for sheet_name, df_result in group_result.data_frames.items():
             self._export_excel_sheet(writer, df_result.df, sheet_name, columns=df_result.columns)
 
-        writer.save()
+        writer.close()
 
     def _export_excel_sheet(self, writer: ExcelWriter, df: DataFrame, sheet_name: str, columns: list[str]):
         worksheet = writer.book.add_worksheet(sheet_name)

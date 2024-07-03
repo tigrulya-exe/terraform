@@ -100,7 +100,8 @@ def read_hline(band: Band, y_offset: int):
 
 
 def get_raster_type(path: str):
-    band = open_img(path).GetRasterBand(1)
+    img = open_img(path)
+    band = img.GetRasterBand(1)
     return gdal.GetDataTypeName(band.DataType)
 
 
