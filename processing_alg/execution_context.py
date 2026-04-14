@@ -297,8 +297,7 @@ class QgisExecutionContext(ExecutionContext):
         self.log_info("[QGIS processing]: merging bands.")
 
         out_type_ordinal = get_raster_type_ordinal(gdal_out_type)
-        processing_func = processing.runAndLoadResults if self.need_load else processing.run
-        merge_results = processing_func(
+        merge_results = processing.run(
             "gdal:merge",
             {
                 'INPUT': band_paths,
@@ -310,8 +309,18 @@ class QgisExecutionContext(ExecutionContext):
             feedback=self.silent_feedback,
             context=self.qgis_context
         )
-        return merge_results['OUTPUT']
+        output_path = merge_results['OUTPUT']
 
+        if self.need_load:
+            self.qgis_context.addLayerToLoadOnCompletion(
+                output_path,
+                self.qgis_context.LayerDetails(
+                    os.path.basename(output_path),
+                    self.qgis_context.project()
+                )
+            )
+
+        return output_path
 
 @dataclass
 class SerializableQgisExecutionContext(ExecutionContext):

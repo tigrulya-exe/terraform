@@ -46,7 +46,7 @@ def draw_subplot(
 
     ax.set_title(plot_info.name)
 
-    plot_info.histogram[plot_info.histogram < 1] = np.NaN
+    plot_info.histogram[plot_info.histogram < 1] = np.nan
     cm = plt.get_cmap(cmap)
     cm.set_bad("white")
 
