@@ -2,6 +2,7 @@
 [general]
 name=Terraform
 qgisMinimumVersion=4.0
+qgisMaximumVersion=4.99
 description=Implementation of popular topographic correction algorithms and various methods of their evaluation.
 version=0.6
 author=Tigran Manasyan, Nikolay Dobretsov
