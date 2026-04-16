@@ -24,6 +24,8 @@ from osgeo import gdal
 from osgeo_utils.auxiliary.util import open_ds, GetOutputDriverFor
 from osgeo_utils.gdal_calc import DefaultNDVLookup
 
+from processing_alg.execution_context import QgisExecutionContext
+
 
 class RasterInfo:
     def __init__(self, uid, path, band=None):
@@ -37,6 +39,7 @@ class RasterInfo:
 class SimpleRasterCalc:
     def calculate(
             self,
+            ctx: QgisExecutionContext,
             func,
             output_path: str,
             raster_infos: list[RasterInfo],
@@ -98,9 +101,9 @@ class SimpleRasterCalc:
             myProjection = myFile.GetProjection()
             if ProjectionCheck:
                 if ProjectionCheck != myProjection:
-                    raise Exception(
-                        f"Error! Projection of file {filename} {myProjection} "
-                        f"are different from other files {ProjectionCheck}.  Cannot proceed")
+                    ctx.log_warn(
+                        f"Projection of file {filename} {myProjection} is different from"
+                        f" other files projection {ProjectionCheck}.")
             else:
                 ProjectionCheck = myProjection
 
@@ -124,7 +127,8 @@ class SimpleRasterCalc:
             elif [myOut.RasterXSize, myOut.RasterYSize] != DimensionsCheck:
                 error = 'but is the wrong size'
             elif ProjectionCheck and ProjectionCheck != myOut.GetProjection():
-                error = 'but is the wrong projection'
+                ctx.log_warn("Output has the wrong projection")
+                error = None
             elif GeoTransformCheck and GeoTransformCheck != myOut.GetGeoTransform(can_return_null=True):
                 error = 'but is the wrong geotransform'
             else:
@@ -167,8 +171,7 @@ class SimpleRasterCalc:
             if GeoTransformCheck:
                 myOut.SetGeoTransform(GeoTransformCheck)
 
-            if not ProjectionCheck:
-                ProjectionCheck = myFiles[0].GetProjection()
+            ProjectionCheck = myFiles[0].GetProjection()
             if ProjectionCheck:
                 myOut.SetProjection(ProjectionCheck)
 

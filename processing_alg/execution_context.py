@@ -285,6 +285,7 @@ class QgisExecutionContext(ExecutionContext):
                 sin(sza_radians) * np.sin(slope) * np.cos(aspect - solar_azimuth_radians))
 
         self.calc.calculate(
+            self,
             calc_function,
             result_path,
             [RasterInfo("slope", slope_path),

@@ -126,6 +126,7 @@ class TopoCorrectionAlgorithm:
 
         out_path = self._output_file_path(ctx, out_file_postfix)
         self.calc.calculate(
+            ctx=ctx,
             func=calc_func,
             output_path=out_path,
             raster_infos=raster_infos,
