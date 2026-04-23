@@ -13,18 +13,22 @@ You should have received a copy of the GNU General Public License along with
 this program. If not, see <http://www.gnu.org/licenses/>.
 """
 
+from __future__ import annotations
+
 __author__ = 'Tigran Manasyan'
 __copyright__ = '(C) 2023 by Tigran Manasyan'
 __license__ = "GPLv3"
 
 import os
+from typing import TYPE_CHECKING
 
 import numpy as np
 from osgeo import gdal
 from osgeo_utils.auxiliary.util import open_ds, GetOutputDriverFor
 from osgeo_utils.gdal_calc import DefaultNDVLookup
 
-from processing_alg.execution_context import QgisExecutionContext
+if TYPE_CHECKING:
+    from ..processing_alg.execution_context import QgisExecutionContext
 
 
 class RasterInfo:

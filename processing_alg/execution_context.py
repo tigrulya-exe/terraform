@@ -21,7 +21,7 @@ import logging
 import os
 import random
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from math import radians, cos, sin
 from pathlib import Path
 from typing import Dict, Any
@@ -53,6 +53,7 @@ class ExecutionContext:
     _aspect_path: str = None
     _luminance_path: str = None
     pixel_ignore_threshold: int = 5
+    salt: int = field(default_factory=lambda: random.randint(1, 100000))
 
     @property
     def need_qgis_init(self):
@@ -106,6 +107,8 @@ class ExecutionContext:
     def merge_bands(self, band_paths: list[str], gdal_out_type: str, out_path: str = None):
         pass
 
+    def unique_tmp_path(self, prefix: str, suffix: str = ""):
+        return os.path.join(self.tmp_dir, f"{prefix}_{self.salt}{suffix}")
 
 class QgisExecutionContext(ExecutionContext):
     def __init__(
@@ -202,7 +205,7 @@ class QgisExecutionContext(ExecutionContext):
                 'AS_PERCENT': False,
                 'COMPUTE_EDGES': True,
                 'ZEVENBERGEN': True,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
+                'OUTPUT': self.unique_tmp_path("slope_rad", ".tif")
             },
             feedback=self.silent_feedback,
             context=self.qgis_context,
@@ -219,7 +222,7 @@ class QgisExecutionContext(ExecutionContext):
                 'INPUT_A': result_deg_path,
                 'BAND_A': 1,
                 'FORMULA': f'deg2rad(A)',
-                'OUTPUT': 'TEMPORARY_OUTPUT',
+                'OUTPUT': self.unique_tmp_path("slope", ".tif")
             },
             feedback=self.silent_feedback,
             context=self.qgis_context
@@ -237,7 +240,7 @@ class QgisExecutionContext(ExecutionContext):
                 'ZERO_FLAT': True,
                 'COMPUTE_EDGES': True,
                 'ZEVENBERGEN': True,
-                'OUTPUT': 'TEMPORARY_OUTPUT'
+                'OUTPUT': self.unique_tmp_path("aspect_rad", ".tif")
             },
             feedback=self.silent_feedback,
             context=self.qgis_context,
@@ -254,7 +257,7 @@ class QgisExecutionContext(ExecutionContext):
                 'INPUT_A': result_deg_path,
                 'BAND_A': 1,
                 'FORMULA': f'deg2rad(A)',
-                'OUTPUT': 'TEMPORARY_OUTPUT',
+                'OUTPUT': self.unique_tmp_path("aspect", ".tif")
             },
             feedback=self.silent_feedback,
             context=self.qgis_context
@@ -276,7 +279,7 @@ class QgisExecutionContext(ExecutionContext):
         sza_radians = radians(self.sza_degrees)
         solar_azimuth_radians = radians(self.solar_azimuth_degrees)
 
-        result_path = os.path.join(self.tmp_dir, f"luminance_{random.randint(0, 9999)}.tif")
+        result_path = self.unique_tmp_path("luminance", ".tif")
 
         def calc_function(slope, aspect):
             return np.fmax(
@@ -330,7 +333,7 @@ class SerializableQgisExecutionContext(ExecutionContext):
         luminance_path = ctx.luminance_path
 
         set_multiprocessing_metadata()
-        return SerializableQgisExecutionContext(
+        result = SerializableQgisExecutionContext(
             input_layer_path=ctx.input_layer_path,
             input_layer_band_count=ctx.input_layer_band_count,
             _slope_path=ctx.slope_path,
@@ -346,6 +349,9 @@ class SerializableQgisExecutionContext(ExecutionContext):
             tmp_dir=ctx.tmp_dir,
             need_load=False
         )
+        if ctx.keep_in_memory:
+            result._luminance_bytes = ctx.luminance_bytes
+        return result
 
     @property
     def qgis_context(self):

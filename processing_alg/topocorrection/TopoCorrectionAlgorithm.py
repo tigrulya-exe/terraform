@@ -18,7 +18,6 @@ __copyright__ = '(C) 2023 by Tigran Manasyan'
 __license__ = "GPLv3"
 
 import os
-import random
 import time
 import traceback
 from concurrent.futures import ProcessPoolExecutor
@@ -31,7 +30,6 @@ from ...util.raster_calc import SimpleRasterCalc, RasterInfo
 class TopoCorrectionAlgorithm:
     def __init__(self):
         self.calc = SimpleRasterCalc()
-        self.salt = random.randint(1, 100000)
 
     @staticmethod
     def name():
@@ -113,10 +111,7 @@ class TopoCorrectionAlgorithm:
         return result_bands
 
     def _output_file_path(self, ctx, postfix=''):
-        return os.path.join(
-            ctx.tmp_dir,
-            f'{self.name()}_{self.salt}_{postfix}.tif'
-        )
+        return ctx.unique_tmp_path(self.name(), f"_{postfix}.tif")
 
     def _raster_calculate(self, ctx: QgisExecutionContext, calc_func, raster_infos: list[RasterInfo],
                           out_file_postfix='',

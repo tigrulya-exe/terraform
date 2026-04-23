@@ -25,6 +25,7 @@ from qgis.PyQt.QtCore import QCoreApplication
 from qgis.core import (QgsProcessingContext,
                        QgsProcessingFeedback,
                        QgsProcessingParameterEnum,
+                       QgsProcessingParameterFile,
                        QgsProcessingParameterNumber,
                        QgsProcessingParameterRasterLayer,
                        QgsProcessingParameterRasterDestination)
@@ -166,6 +167,14 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
         )
         self._additional_param(show_layers_param)
 
+        tmp_dir_param = QgsProcessingParameterFile(
+            'TMP_DIR',
+            self.tr('Directory for intermediate layers'),
+            behavior=QgsProcessingParameterFile.Folder,
+            optional=True
+        )
+        self._additional_param(tmp_dir_param)
+
         params = self.parallel_run_params()
         [self._additional_param(param) for param in params]
 
@@ -187,6 +196,7 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
 
         output_file_path = self.parameterAsFileOutput(parameters, 'OUTPUT', context)
         pixel_ignore_threshold = self.parameterAsDouble(parameters, 'PIXEL_IGNORE_THRESHOLD', context)
+        tmp_dir = self.parameterAsString(parameters, 'TMP_DIR', context) or get_project_tmp_dir()
 
         class TopoCorrectionQgisExecutionContext(QgisExecutionContext):
             def __init__(inner):
@@ -203,9 +213,8 @@ class TerraformTopoCorrectionAlgorithm(TerraformProcessingAlgorithm, ParallelPro
                     task_timeout=task_timeout,
                     worker_count=worker_count,
                     pixel_ignore_threshold=pixel_ignore_threshold,
-                    tmp_dir=get_project_tmp_dir()
+                    tmp_dir=tmp_dir
                 )
-                inner.salt = random.randint(1, 100000)
 
             def calculate_slope(inner, in_radians=True) -> str:
                 result_path = super().calculate_slope(in_radians)
